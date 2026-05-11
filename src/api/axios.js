@@ -2,8 +2,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8000/api', // Adjust to your Laravel URL
-    // baseURL: 'https://darksalmon-sardine-333699.hostingersite.com/api', // Adjust to your Laravel URL
+    // baseURL: 'http://localhost:8000/api', // Adjust to your Laravel URL
+    baseURL: 'https://backend.theglasspeople.com/api', // Adjust to your Laravel URL
     headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
