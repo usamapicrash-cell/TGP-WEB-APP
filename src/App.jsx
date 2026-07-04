@@ -3,6 +3,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// --- Global Voice Call Context & Component ---
+import { CallProvider } from './context/CallingContext';
+import GlobalCallWidget from './components/GlobalCallWidget'; // Yeh aapka call panel component hai
+
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import GlazierLayout from './layouts/GlazierLayout';
@@ -59,7 +63,10 @@ const AuthRedirectWrapper = ({ children }) => {
 function App() {
   return (
     <>
+    <CallProvider> {/* Poori app ko Voice Channel ke pipeline se wrap kiya */}
       <Toaster position="top-right" reverseOrder={false} />
+      {/* Dynamic Voice Call overlay hamesha routes ke baahar background me run karegi */}
+      <GlobalCallWidget />
       <Routes>
         <Route path="/login" element={<PageTitle title="Login"><Login /></PageTitle>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -151,6 +158,7 @@ function App() {
           </AuthRedirectWrapper>
         } />
       </Routes>
+      </CallProvider>
     </>
   );
 }

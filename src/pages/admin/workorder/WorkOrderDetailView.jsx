@@ -8,7 +8,7 @@ import POTab from './tab/POTab';
 import SiteVisitsTab from './tab/SiteVisitsTab';
 import ActivityTab from './tab/ActivityTab';
 import History from '../lead/tab/History';
-
+import OrderCommunication from '../OrderCommunication'; // New Separate Component
 
 const WorkOrderDetailView = ({ order, onBack }) => {
     const [activeTab, setActiveTab] = useState('Details');
@@ -21,7 +21,6 @@ const WorkOrderDetailView = ({ order, onBack }) => {
     const fetchOrderDetail = useCallback(async () => {
         try {
             setLoading(true);
-            // Assuming endpoint is /jobs/{id}
             const response = await api.get(`/jobs/${order.id}`);
             setFullOrderData(response.data);
         } catch (err) {
@@ -35,24 +34,22 @@ const WorkOrderDetailView = ({ order, onBack }) => {
         fetchOrderDetail();
     }, [fetchOrderDetail]);
 
-    // Helper to render the correct component
     const renderTabContent = () => {
-        // Jab tak data load ho raha ho ya na mile
         if (loading) return <div className="text-center p-5"><div className="spinner-border text-primary"></div></div>;
         if (!fullOrderData) return <div className="text-center p-5">No data found.</div>;
         const contractValue = fullOrderData.lead?.value || 0;
 
-        // Common props jo har tab ko chahiye ho saktay hain
         const commonProps = { 
             leadId: fullOrderData.lead?.id, 
             lead: fullOrderData.lead,
             leadValue: contractValue,
             orderId: order.id,
-            onUpdate: fetchOrderDetail // Taake koi bhi tab data refresh kar sakay
+            onUpdate: fetchOrderDetail 
         };
+
         switch (activeTab) {
             case 'Details': return <DetailsTab order={fullOrderData} onUpdate={fetchOrderDetail} />;
-            case 'Chat': return <ChatTab {...commonProps} />; // ChatTab ab fresh glazier dekhega
+            case 'Chat': return <ChatTab {...commonProps} />;
             case 'Media': return <MediaTab {...commonProps} />;
             case 'Payments': return <PaymentsTab {...commonProps} />;
             case 'POs': return <POTab {...commonProps} />;
@@ -78,7 +75,7 @@ const WorkOrderDetailView = ({ order, onBack }) => {
                             (fullOrderData?.work_status || order.status) === 'in_progress' ? 'bg-primary-subtle text-primary border border-primary-subtle' :
                             'bg-warning-subtle text-warning border border-warning-subtle'
                         }`} style={{ fontSize: '0.8rem', letterSpacing: '0.5px', textTransform: 'uppercase', margin:'5px 17px' }}>
-                            <i className="bi bi- circle-fill me-1" style={{ fontSize: '0.5rem' }}></i>
+                            <i className="bi bi-circle-fill me-1" style={{ fontSize: '0.5rem' }}></i>
                             {fullOrderData?.work_status || order.status}
                         </span>
                     </h4>
@@ -86,14 +83,16 @@ const WorkOrderDetailView = ({ order, onBack }) => {
                         {fullOrderData?.lead?.job_address || 'Address N/A'} - ID: {fullOrderData?.job_number || order.id}
                     </p>
                 </div>
-                {/*<div className="ms-auto">
-                    <button className="btn btn-outline-secondary btn-sm me-2">
-                        <i className="bi bi-telephone"></i>
-                    </button>
-                    <button className="btn btn-outline-secondary btn-sm">
-                        <i className="bi bi-envelope"></i>
-                    </button>
-                </div>*/}
+
+                {/* --- Smart Communication Icons (Right Side Aligned) --- */}
+                {!loading && fullOrderData && (
+                    <div className="ms-auto">
+                        <OrderCommunication 
+                            phoneNumber={fullOrderData?.lead?.phone} 
+                            clientName={fullOrderData?.lead?.client_name || 'Customer'} 
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Pill Navigation */}
@@ -110,7 +109,7 @@ const WorkOrderDetailView = ({ order, onBack }) => {
                             borderRadius: '8px',
                             fontSize: '0.85rem',
                             backgroundColor: activeTab === tab ? '#ffffff' : 'transparent',
-                            color: activeTab === tab ? 'var(--primary-blue)' : '#6c757d',
+                            color: activeTab === tab ? 'var(--primary-blue, #0d6efd)' : '#6c757d',
                             minWidth: 'fit-content'
                         }}
                     >

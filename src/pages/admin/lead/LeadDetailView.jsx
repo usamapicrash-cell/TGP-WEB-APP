@@ -14,6 +14,7 @@ import Schedule from './tab/Schedule';
 import ActivityTab from '../workorder/tab/ActivityTab';
 import History from './tab/History';
 import ChatTab from '../workorder/tab/ChatTab';
+import OrderCommunication from '../OrderCommunication'; // New Separate Component
 
 const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
     const [activeTab, setActiveTab] = useState('Details');
@@ -159,10 +160,13 @@ const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
                         Convert to Job
                     </button>
                 </div>
+
+                
             </div>
 
             {/* Pill Navigation */}
             <div className="d-flex p-2 mb-4 align-items-center" style={{ borderRadius: '12px', gap: '4px', backgroundColor: 'rgb(245, 247, 249)', overflowX: 'auto' }}>
+                
                 {tabs.map((tab) => (
                     <button
                         key={tab}
@@ -173,6 +177,15 @@ const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
                         {tab}
                     </button>
                 ))}
+                 {/* --- Smart Communication Icons (Right Side Aligned) --- */}
+                {currentLead && (
+                    <div className="ms-auto">
+                        <OrderCommunication 
+                            phoneNumber={currentLead?.phone} 
+                            clientName={currentLead?.client_name || 'Customer'} 
+                        />
+                    </div>
+                )}
             </div>
 
             <div className="tab-content-container">
