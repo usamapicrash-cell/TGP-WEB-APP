@@ -157,6 +157,7 @@ export const CallProvider = ({ children }) => {
     }, []);
 
     // OUTBOUND CALLS (React se Customer ko call lagana)
+    // OUTBOUND CALLS (React se Customer ko call lagana)
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
             alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
@@ -182,44 +183,49 @@ export const CallProvider = ({ children }) => {
         }
 
         try {
-            const call = await voiceAppRef.current.callServer(formattedNumber, 'phone');
+            // custom_data pass kar rahe hain jo backend par verify hoga
+            const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
+                number: formattedNumber
+            });
             activeCallRef.current = call;
 
             call.on('member:media', (member, event) => {
                 attachAudioStream(call);
             });
 
-            // MAIN FIX: Outbound Member State (Handle 'joined' for Answer, and 'left' for Hangup/Cut)
+            // Outbound Member State change capture karne ke liye
             call.on('member:state', (member, event) => {
                 if (!isMountedRef.current) return;
                 
                 const currentState = (event?.body?.status || member.state || "").toLowerCase();
                 console.log("Outbound Member State Update:", currentState);
 
-                // 'joined' is the key status sent by Vonage when the call is picked up
                 if (['answered', 'joined'].includes(currentState)) {
                     stopAllSounds(); 
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 } 
-                // 'left' is sent when the other person cuts the call
-                else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(currentState)) {
+                else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(currentState)) {
+                    console.log("Call terminated due to state:", currentState);
                     cleanUpCallState();
                 }
             });
 
-            // Call status changes fallback
+            // Direct Call Status listener (logs ke 'busy' aur 'completed' states handle karne ke liye)
             call.on('status:changed', (status) => {
                 if (!isMountedRef.current) return;
                 
                 const s = status.toLowerCase();
                 console.log("Outbound Call Status Update:", s);
 
-                if (['answered', 'joined'].includes(s)) {
+                if (['answered', 'joined', 'active'].includes(s)) {
                     stopAllSounds();
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left'].includes(s)) {
+                } 
+                // AGAR BUSY YA COMPLETED HO (Logs wala exact status)
+                else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
+                    console.log("Call dropped, status was:", s);
                     cleanUpCallState();
                 }
             });

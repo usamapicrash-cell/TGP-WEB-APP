@@ -1,0 +1,15 @@
+RewriteEngine On
+
+# 1. Sab traffic ko /dist folder par bhejo
+RewriteRule ^$ dist/ [L]
+
+# 2. Agar file dist ke bahar dhoondi jaye toh usay dist ke andar redirect karo
+RewriteCond %{REQUEST_URI} !^/dist/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ dist/$1 [L]
+
+# 3. React Router (SPA) support: 404 se bachne ke liye
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^dist/(.*)$ dist/index.html [L]
