@@ -13,20 +13,47 @@ export const CallProvider = ({ children }) => {
     });
     const [showCallWidget, setShowCallWidget] = useState(false);
 
-    const nexmoClientRef = useRef(null);   // NexmoClient class instance
-    const voiceAppRef = useRef(null);      // createSession() se mila hua session/application object — isi par callServer() hota hai
+    const nexmoClientRef = useRef(null);   
+    const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
-    const audioRef = useRef(null);
+    
+    // Sounds Refs
+    const ringtoneAudioRef = useRef(null);   // Jab customer call kare (Incoming)
+    const ringbackAudioRef = useRef(null);   // Jab hum customer ko call karein (Outbound Ringing)
     const isMountedRef = useRef(true);
 
     useEffect(() => {
         isMountedRef.current = true;
-        audioRef.current = new Audio('/sounds/ringtone.mp3');
+        // Sounds paths (Inhe public folder ke public/sounds/ mein rakhain)
+        ringtoneAudioRef.current = new Audio('/sounds/ringtone.mp3'); 
+        ringbackAudioRef.current = new Audio('/sounds/ringback.mp3'); // Outbound ringing sound
 
         return () => {
             isMountedRef.current = false;
+            stopAllSounds();
         };
     }, []);
+
+    const stopAllSounds = () => {
+        if (ringtoneAudioRef.current) {
+            ringtoneAudioRef.current.pause();
+            ringtoneAudioRef.current.currentTime = 0;
+        }
+        if (ringbackAudioRef.current) {
+            ringbackAudioRef.current.pause();
+            ringbackAudioRef.current.currentTime = 0;
+        }
+    };
+
+    const cleanUpCallState = () => {
+        stopAllSounds();
+        activeCallRef.current = null;
+
+        if (!isMountedRef.current) return;
+
+        setCallState({ status: 'idle', phoneNumber: null, clientName: null, isMuted: false });
+        setShowCallWidget(false);
+    };
 
     useEffect(() => {
         let clientApp = null;
@@ -40,10 +67,11 @@ export const CallProvider = ({ children }) => {
                 nexmoClientRef.current = nexmo;
 
                 clientApp = await nexmo.createSession(response.data.token);
-                voiceAppRef.current = clientApp;   // 👈 Session object save karein — isi par callServer() call hoga
+                voiceAppRef.current = clientApp;   
 
                 if (!isMountedRef.current) return;
 
+                // Handle INBOUND CALLS (Jab customer call kare)
                 clientApp.on("member:call", (member, call) => {
                     if (call.direction === "inbound") {
                         activeCallRef.current = call;
@@ -56,13 +84,14 @@ export const CallProvider = ({ children }) => {
                         });
                         setShowCallWidget(true);
 
-                        if (audioRef.current) {
-                            audioRef.current.loop = true;
-                            audioRef.current.play().catch(e => console.log("Audio play deferred:", e));
+                        if (ringtoneAudioRef.current) {
+                            ringtoneAudioRef.current.loop = true;
+                            ringtoneAudioRef.current.play().catch(e => console.log("Audio play deferred:", e));
                         }
 
+                        // Event Listeners for Inbound Call
                         call.on('status:changed', (status) => {
-                            if (status === 'completed' || status === 'rejected') {
+                            if (status === 'completed' || status === 'rejected' || status === 'failed') {
                                 cleanUpCallState();
                             }
                         });
@@ -77,23 +106,11 @@ export const CallProvider = ({ children }) => {
         initVonageClient();
 
         return () => {
-            if (audioRef.current) audioRef.current.pause();
+            stopAllSounds();
         };
     }, []);
 
-    const cleanUpCallState = () => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
-        activeCallRef.current = null;
-
-        if (!isMountedRef.current) return;
-
-        setCallState({ status: 'idle', phoneNumber: null, clientName: null, isMuted: false });
-        setShowCallWidget(false);
-    };
-
+    // OUTBOUND CALLS (React se Customer ko call lagana)
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
             alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
@@ -103,8 +120,6 @@ export const CallProvider = ({ children }) => {
             alert("Customer ka phone number missing hai!");
             return;
         }
-
-        // Agar pehle se koi call active/ringing hai to naya call na banayein
         if (callState.status !== 'idle') {
             alert("Ek call pehle se chal rahi hai. Pehle usay end karein.");
             return;
@@ -115,20 +130,34 @@ export const CallProvider = ({ children }) => {
         setCallState({ status: 'ringing', phoneNumber: formattedNumber, clientName, isMuted: false });
         setShowCallWidget(true);
 
+        // Ringback tone start karein (Tring-Tring sound)
+        if (ringbackAudioRef.current) {
+            ringbackAudioRef.current.loop = true;
+            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound error:", e));
+        }
+
         try {
-            // 👇 FIX: voiceAppRef (session object) use karein, nexmoClientRef nahi
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone');
             activeCallRef.current = call;
 
+            // Jab outbound call answer ho jaye ya disconnect ho jaye
             call.on('status:changed', (status) => {
                 if (!isMountedRef.current) return;
 
                 if (status === 'answered') {
+                    stopAllSounds(); // Ringing sound band karein
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 } else if (status === 'completed' || status === 'rejected' || status === 'failed') {
                     cleanUpCallState();
                 }
             });
+
+            // CRITICAL FIX: Agar dusri side se user call cut (reject/busy) kar de
+            call.on('member:left', (member) => {
+                console.log("Member left the call:", member);
+                cleanUpCallState();
+            });
+
         } catch (error) {
             console.error("Failed to establish call:", error);
             cleanUpCallState();
@@ -137,7 +166,7 @@ export const CallProvider = ({ children }) => {
 
     const answerCall = () => {
         if (activeCallRef.current && callState.status === 'incoming') {
-            if (audioRef.current) audioRef.current.pause();
+            stopAllSounds();
 
             activeCallRef.current.answer()
                 .then(() => {
@@ -151,27 +180,22 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // --- Cancel / End / Reject Call ---
-    // Works for all states: ringing (outbound not yet answered),
-    // incoming (reject before answering), and active (hang up connected call).
     const endCall = () => {
         const call = activeCallRef.current;
-
-        // UI turant reset karein taake user ko lag na lage ke button response nahi de raha
         cleanUpCallState();
 
         if (!call) return;
 
         try {
             if (typeof call.hangUp === 'function') {
-                call.hangUp().catch(err => console.log('hangUp() error (safe to ignore if already ended):', err));
+                call.hangUp().catch(err => console.log('hangUp() error:', err));
             } else if (typeof call.hangup === 'function') {
                 call.hangup();
             } else if (typeof call.reject === 'function') {
                 call.reject();
             }
         } catch (e) {
-            console.log('End call error (call likely already ended):', e);
+            console.log('End call error:', e);
         }
     };
 
