@@ -26,11 +26,11 @@ export const CallProvider = ({ children }) => {
     useEffect(() => {
         isMountedRef.current = true;
         
-        // Sounds paths (Inhe public folder ke public/sounds/ mein rakhain)
+        // Sounds paths
         ringtoneAudioRef.current = new Audio('/sounds/ringtone.mp3'); 
         ringbackAudioRef.current = new Audio('/sounds/ringback.mp3'); 
 
-        // CRITICAL FIX: WebRTC ka audio track play karne ke liye invisible Audio element create karna
+        // WebRTC ka audio track play karne ke liye invisible Audio element create karna
         const audioEl = document.createElement('audio');
         audioEl.autoplay = true;
         remoteAudioRef.current = audioEl;
@@ -73,12 +73,10 @@ export const CallProvider = ({ children }) => {
     // Helper to attach WebRTC stream to HTML audio element
     const attachAudioStream = (call) => {
         if (call && remoteAudioRef.current) {
-            // Vonage WebRTC stream ko html audio tag ke source main inject karna
             const stream = call.htmlAudio?.srcObject || call.stream;
             if (stream) {
                 remoteAudioRef.current.srcObject = stream;
             } else if (typeof call.setAudioElement === 'function') {
-                // Alternately try Vonage standard SDK bindings
                 call.setAudioElement(remoteAudioRef.current);
             }
         }
@@ -108,7 +106,7 @@ export const CallProvider = ({ children }) => {
                         setCallState({
                             status: 'incoming',
                             phoneNumber: call.from || 'Unknown Customer',
-                            clientName: "Incoming Call (TGP Portal)",
+                            clientName: "Incoming Call",
                             isMuted: false
                         });
                         setShowCallWidget(true);
@@ -118,22 +116,30 @@ export const CallProvider = ({ children }) => {
                             ringtoneAudioRef.current.play().catch(e => console.log("Audio play deferred:", e));
                         }
 
-                        // Event Listeners for Inbound Call
-                        call.on('status:changed', (status) => {
+                        // INBOUND Event Listeners
+                        call.on('member:state', (memberObj, event) => {
                             if (!isMountedRef.current) return;
-                            console.log("Inbound Call Status Update:", status);
+                            const state = (memberObj.state || event?.body?.status || "").toLowerCase();
+                            console.log("Inbound Member State Update:", state);
 
-                            if (status === 'answered') {
-                                stopAllSounds();
-                                attachAudioStream(call); // WebRTC stream link karein taake dono taraf awaz jaye
-                                setCallState(prev => ({ ...prev, status: 'active' }));
-                            } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(status.toLowerCase())) {
+                            // Agar remote bande ne call cut kardi uthane se pehle
+                            if (['left', 'completed', 'canceled', 'rejected'].includes(state)) {
                                 cleanUpCallState();
                             }
                         });
 
-                        call.on('member:left', () => {
-                            cleanUpCallState();
+                        call.on('status:changed', (status) => {
+                            if (!isMountedRef.current) return;
+                            const s = status.toLowerCase();
+                            console.log("Inbound Call Status Update:", s);
+
+                            if (['answered', 'active', 'joined'].includes(s)) {
+                                stopAllSounds();
+                                attachAudioStream(call);
+                                setCallState(prev => ({ ...prev, status: 'active' }));
+                            } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left'].includes(s)) {
+                                cleanUpCallState();
+                            }
                         });
                     }
                 });
@@ -156,26 +162,17 @@ export const CallProvider = ({ children }) => {
             alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
             return;
         }
-        if (!phoneNumber) {
-            alert("Customer ka phone number missing hai!");
-            return;
-        }
-        if (callState.status !== 'idle') {
-            alert("Ek call pehle se chal rahi hai. Pehle usay end karein.");
-            return;
-        }
+        if (!phoneNumber) return alert("Customer ka phone number missing hai!");
+        if (callState.status !== 'idle') return alert("Ek call pehle se chal rahi hai. Pehle usay end karein.");
 
-        // Microphone Permission Prompt (Laazmi browser pop-up)
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (err) {
             console.error("Mic Error:", err);
-            alert("Microphone ki permission required hai! Browser settings mein mic allow karein.");
-            return;
+            return alert("Microphone ki permission required hai! Browser settings mein mic allow karein.");
         }
 
         const formattedNumber = phoneNumber.replace(/\D/g, '');
-
         setCallState({ status: 'ringing', phoneNumber: formattedNumber, clientName, isMuted: false });
         setShowCallWidget(true);
 
@@ -188,23 +185,26 @@ export const CallProvider = ({ children }) => {
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone');
             activeCallRef.current = call;
 
-            // Handle WebRTC Stream addition (Jab audio connect ho jaye)
             call.on('member:media', (member, event) => {
-                console.log("Media channel joined/updated:", event);
-                attachAudioStream(call); // Audio routing start!
+                attachAudioStream(call);
             });
 
-            // Jab remote user (mobile wala) call status update kare
+            // MAIN FIX: Outbound Member State (Handle 'joined' for Answer, and 'left' for Hangup/Cut)
             call.on('member:state', (member, event) => {
                 if (!isMountedRef.current) return;
                 
                 const currentState = (event?.body?.status || member.state || "").toLowerCase();
-                console.log("Member State Update:", currentState);
+                console.log("Outbound Member State Update:", currentState);
 
-                if (currentState === 'answered') {
+                // 'joined' is the key status sent by Vonage when the call is picked up
+                if (['answered', 'joined'].includes(currentState)) {
                     stopAllSounds(); 
-                    attachAudioStream(call); // Stream ko audio output par link karein
+                    attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
+                } 
+                // 'left' is sent when the other person cuts the call
+                else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(currentState)) {
+                    cleanUpCallState();
                 }
             });
 
@@ -213,20 +213,15 @@ export const CallProvider = ({ children }) => {
                 if (!isMountedRef.current) return;
                 
                 const s = status.toLowerCase();
-                console.log("Call Status Update:", s);
+                console.log("Outbound Call Status Update:", s);
 
-                if (s === 'answered') {
+                if (['answered', 'joined'].includes(s)) {
                     stopAllSounds();
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(s)) {
+                } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left'].includes(s)) {
                     cleanUpCallState();
                 }
-            });
-
-            call.on('member:left', (member) => {
-                console.log("Member left the call:", member);
-                cleanUpCallState();
             });
 
             call.on('error', (error) => {
@@ -251,7 +246,7 @@ export const CallProvider = ({ children }) => {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 })
                 .catch((err) => {
-                    console.error("Error answering call via Nexmo API:", err);
+                    console.error("Error answering call:", err);
                     cleanUpCallState();
                 });
         }
@@ -262,15 +257,10 @@ export const CallProvider = ({ children }) => {
         cleanUpCallState();
 
         if (!call) return;
-
         try {
-            if (typeof call.hangUp === 'function') {
-                call.hangUp().catch(err => console.log('hangUp() error:', err));
-            } else if (typeof call.hangup === 'function') {
-                call.hangup();
-            } else if (typeof call.reject === 'function') {
-                call.reject();
-            }
+            if (typeof call.hangUp === 'function') call.hangUp().catch(() => {});
+            else if (typeof call.hangup === 'function') call.hangup();
+            else if (typeof call.reject === 'function') call.reject();
         } catch (e) {
             console.log('End call error:', e);
         }
@@ -279,11 +269,8 @@ export const CallProvider = ({ children }) => {
     const toggleMute = () => {
         if (activeCallRef.current && callState.status === 'active') {
             try {
-                if (callState.isMuted) {
-                    activeCallRef.current.unmute();
-                } else {
-                    activeCallRef.current.mute();
-                }
+                if (callState.isMuted) activeCallRef.current.unmute();
+                else activeCallRef.current.mute();
                 setCallState(prev => ({ ...prev, isMuted: !prev.isMuted }));
             } catch (e) {
                 console.error('Mute toggle error:', e);
