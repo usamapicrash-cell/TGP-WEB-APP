@@ -56,7 +56,9 @@ export const CallProvider = ({ children }) => {
         }
     };
 
+    // FIXED: Cleanup state with immediate state updates
     const cleanUpCallState = () => {
+        console.log("Cleaning up call state, hiding popup...");
         stopAllSounds();
         activeCallRef.current = null;
 
@@ -64,10 +66,14 @@ export const CallProvider = ({ children }) => {
             remoteAudioRef.current.srcObject = null; // Audio stream disconnect karein
         }
 
-        if (!isMountedRef.current) return;
-
-        setCallState({ status: 'idle', phoneNumber: null, clientName: null, isMuted: false });
+        // Force react state to trigger immediately
         setShowCallWidget(false);
+        setCallState({ 
+            status: 'idle', 
+            phoneNumber: null, 
+            clientName: null, 
+            isMuted: false 
+        });
     };
 
     // Helper to attach WebRTC stream to HTML audio element
@@ -118,18 +124,15 @@ export const CallProvider = ({ children }) => {
 
                         // INBOUND Event Listeners
                         call.on('member:state', (memberObj, event) => {
-                            if (!isMountedRef.current) return;
                             const state = (memberObj.state || event?.body?.status || "").toLowerCase();
                             console.log("Inbound Member State Update:", state);
 
-                            // Agar remote bande ne call cut kardi uthane se pehle
                             if (['left', 'completed', 'canceled', 'rejected'].includes(state)) {
                                 cleanUpCallState();
                             }
                         });
 
                         call.on('status:changed', (status) => {
-                            if (!isMountedRef.current) return;
                             const s = status.toLowerCase();
                             console.log("Inbound Call Status Update:", s);
 
@@ -157,7 +160,6 @@ export const CallProvider = ({ children }) => {
     }, []);
 
     // OUTBOUND CALLS (React se Customer ko call lagana)
-    // OUTBOUND CALLS (React se Customer ko call lagana)
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
             alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
@@ -183,7 +185,6 @@ export const CallProvider = ({ children }) => {
         }
 
         try {
-            // custom_data pass kar rahe hain jo backend par verify hoga
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
@@ -193,28 +194,25 @@ export const CallProvider = ({ children }) => {
                 attachAudioStream(call);
             });
 
-            // Outbound Member State change capture karne ke liye
+            // FIXED: Pure State management update within WebRTC context
             call.on('member:state', (member, event) => {
-                if (!isMountedRef.current) return;
-                
                 const currentState = (event?.body?.status || member.state || "").toLowerCase();
                 console.log("Outbound Member State Update:", currentState);
 
                 if (['answered', 'joined'].includes(currentState)) {
                     stopAllSounds(); 
                     attachAudioStream(call);
+                    // Explicitly call state update so popup switches state
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 } 
                 else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(currentState)) {
-                    console.log("Call terminated due to state:", currentState);
+                    console.log("Closing popup now...");
                     cleanUpCallState();
                 }
             });
 
-            // Direct Call Status listener (logs ke 'busy' aur 'completed' states handle karne ke liye)
+            // FIXED: Fallback listeners on direct call state change
             call.on('status:changed', (status) => {
-                if (!isMountedRef.current) return;
-                
                 const s = status.toLowerCase();
                 console.log("Outbound Call Status Update:", s);
 
@@ -223,9 +221,8 @@ export const CallProvider = ({ children }) => {
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 } 
-                // AGAR BUSY YA COMPLETED HO (Logs wala exact status)
                 else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
-                    console.log("Call dropped, status was:", s);
+                    console.log("Closing popup on status change:", s);
                     cleanUpCallState();
                 }
             });
@@ -247,7 +244,6 @@ export const CallProvider = ({ children }) => {
 
             activeCallRef.current.answer()
                 .then(() => {
-                    if (!isMountedRef.current) return;
                     attachAudioStream(activeCallRef.current);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 })
@@ -259,8 +255,9 @@ export const CallProvider = ({ children }) => {
     };
 
     const endCall = () => {
+        console.log("Manual end call triggered");
         const call = activeCallRef.current;
-        cleanUpCallState();
+        cleanUpCallState(); // Isko foran call karein taake popup usi waqt gayab ho jaye
 
         if (!call) return;
         try {
