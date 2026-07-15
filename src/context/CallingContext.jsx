@@ -17,20 +17,31 @@ export const CallProvider = ({ children }) => {
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
     
-    // Sounds Refs
+    // Sounds & WebRTC Audio Elements Refs
     const ringtoneAudioRef = useRef(null);   // Jab customer call kare (Incoming)
     const ringbackAudioRef = useRef(null);   // Jab hum customer ko call karein (Outbound Ringing)
+    const remoteAudioRef = useRef(null);     // WebRTC call audio stream output karne ke liye
     const isMountedRef = useRef(true);
 
     useEffect(() => {
         isMountedRef.current = true;
+        
         // Sounds paths (Inhe public folder ke public/sounds/ mein rakhain)
         ringtoneAudioRef.current = new Audio('/sounds/ringtone.mp3'); 
-        ringbackAudioRef.current = new Audio('/sounds/ringback.mp3'); // Outbound ringing sound
+        ringbackAudioRef.current = new Audio('/sounds/ringback.mp3'); 
+
+        // CRITICAL FIX: WebRTC ka audio track play karne ke liye invisible Audio element create karna
+        const audioEl = document.createElement('audio');
+        audioEl.autoplay = true;
+        remoteAudioRef.current = audioEl;
+        document.body.appendChild(audioEl);
 
         return () => {
             isMountedRef.current = false;
             stopAllSounds();
+            if (audioEl) {
+                audioEl.remove();
+            }
         };
     }, []);
 
@@ -49,10 +60,28 @@ export const CallProvider = ({ children }) => {
         stopAllSounds();
         activeCallRef.current = null;
 
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = null; // Audio stream disconnect karein
+        }
+
         if (!isMountedRef.current) return;
 
         setCallState({ status: 'idle', phoneNumber: null, clientName: null, isMuted: false });
         setShowCallWidget(false);
+    };
+
+    // Helper to attach WebRTC stream to HTML audio element
+    const attachAudioStream = (call) => {
+        if (call && remoteAudioRef.current) {
+            // Vonage WebRTC stream ko html audio tag ke source main inject karna
+            const stream = call.htmlAudio?.srcObject || call.stream;
+            if (stream) {
+                remoteAudioRef.current.srcObject = stream;
+            } else if (typeof call.setAudioElement === 'function') {
+                // Alternately try Vonage standard SDK bindings
+                call.setAudioElement(remoteAudioRef.current);
+            }
+        }
     };
 
     useEffect(() => {
@@ -91,9 +120,20 @@ export const CallProvider = ({ children }) => {
 
                         // Event Listeners for Inbound Call
                         call.on('status:changed', (status) => {
-                            if (status === 'completed' || status === 'rejected' || status === 'failed') {
+                            if (!isMountedRef.current) return;
+                            console.log("Inbound Call Status Update:", status);
+
+                            if (status === 'answered') {
+                                stopAllSounds();
+                                attachAudioStream(call); // WebRTC stream link karein taake dono taraf awaz jaye
+                                setCallState(prev => ({ ...prev, status: 'active' }));
+                            } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(status.toLowerCase())) {
                                 cleanUpCallState();
                             }
+                        });
+
+                        call.on('member:left', () => {
+                            cleanUpCallState();
                         });
                     }
                 });
@@ -125,12 +165,20 @@ export const CallProvider = ({ children }) => {
             return;
         }
 
+        // Microphone Permission Prompt (Laazmi browser pop-up)
+        try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            console.error("Mic Error:", err);
+            alert("Microphone ki permission required hai! Browser settings mein mic allow karein.");
+            return;
+        }
+
         const formattedNumber = phoneNumber.replace(/\D/g, '');
 
         setCallState({ status: 'ringing', phoneNumber: formattedNumber, clientName, isMuted: false });
         setShowCallWidget(true);
 
-        // Ringback tone start karein (Tring-Tring sound)
         if (ringbackAudioRef.current) {
             ringbackAudioRef.current.loop = true;
             ringbackAudioRef.current.play().catch(e => console.log("Ringing sound error:", e));
@@ -140,21 +188,49 @@ export const CallProvider = ({ children }) => {
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone');
             activeCallRef.current = call;
 
-            // Jab outbound call answer ho jaye ya disconnect ho jaye
+            // Handle WebRTC Stream addition (Jab audio connect ho jaye)
+            call.on('member:media', (member, event) => {
+                console.log("Media channel joined/updated:", event);
+                attachAudioStream(call); // Audio routing start!
+            });
+
+            // Jab remote user (mobile wala) call status update kare
+            call.on('member:state', (member, event) => {
+                if (!isMountedRef.current) return;
+                
+                const currentState = (event?.body?.status || member.state || "").toLowerCase();
+                console.log("Member State Update:", currentState);
+
+                if (currentState === 'answered') {
+                    stopAllSounds(); 
+                    attachAudioStream(call); // Stream ko audio output par link karein
+                    setCallState(prev => ({ ...prev, status: 'active' }));
+                }
+            });
+
+            // Call status changes fallback
             call.on('status:changed', (status) => {
                 if (!isMountedRef.current) return;
+                
+                const s = status.toLowerCase();
+                console.log("Call Status Update:", s);
 
-                if (status === 'answered') {
-                    stopAllSounds(); // Ringing sound band karein
+                if (s === 'answered') {
+                    stopAllSounds();
+                    attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                } else if (status === 'completed' || status === 'rejected' || status === 'failed') {
+                } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered'].includes(s)) {
                     cleanUpCallState();
                 }
             });
 
-            // CRITICAL FIX: Agar dusri side se user call cut (reject/busy) kar de
             call.on('member:left', (member) => {
                 console.log("Member left the call:", member);
+                cleanUpCallState();
+            });
+
+            call.on('error', (error) => {
+                console.error("Call Encountered an Error:", error);
                 cleanUpCallState();
             });
 
@@ -171,6 +247,7 @@ export const CallProvider = ({ children }) => {
             activeCallRef.current.answer()
                 .then(() => {
                     if (!isMountedRef.current) return;
+                    attachAudioStream(activeCallRef.current);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 })
                 .catch((err) => {
