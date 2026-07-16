@@ -4,7 +4,6 @@ import api from '../api/axios';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
-// 1. Pusher globally bind karein securely
 window.Pusher = Pusher;
 
 const CallContext = createContext();
@@ -21,7 +20,7 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
-    const echoInstanceRef = useRef(null); // Echo ke liye Ref banayi taake crash na ho
+    const echoInstanceRef = useRef(null); 
 
     const ringtoneAudioRef = useRef(null);   
     const ringbackAudioRef = useRef(null);   
@@ -47,69 +46,53 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // 3. Pusher (Laravel Echo) Webhook Listener Setup inside useEffect for Safety
+    // Laravel Echo Setup for Webhooks (Completed/Ended calls)
     useEffect(() => {
-        console.log("Starting Pusher setup...");
-        alert("Pusher initialization started! (Check Console)");
-
+        console.log("Setting up Pusher Connection...");
         try {
             const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
             const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2';
 
-            console.log("Pusher Config Details:", { key: pusherKey, cluster: pusherCluster });
-
-            // Safe Echo connection creation
             if (!echoInstanceRef.current) {
                 echoInstanceRef.current = new Echo({
                     broadcaster: 'pusher',
                     key: pusherKey,
                     cluster: pusherCluster,
                     forceTLS: true,
-                    disableStats: true // Connection lag aur errors ko kam karne ke liye
+                    disableStats: true
                 });
             }
 
-            console.log("Echo Instance Created successfully. Joining channel: vonage-calls...");
             const channel = echoInstanceRef.current.channel('vonage-calls');
             
-            // Channel connectivity logging
-            echoInstanceRef.current.connector.pusher.connection.bind('state_change', (states) => {
-                console.log("Pusher connection state changed:", states);
-            });
-
             const handleCallStatusUpdate = (data) => {
-                console.log("Real-time call status received via Pusher:", data);
-                
+                console.log("[Pusher Webhook] Call status received:", data);
                 const status = (data.status || data.call_status || '').toLowerCase();
                 const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer'];
                 
                 if (endStates.includes(status)) {
-                    console.log(`[Pusher] Call ended remotely with status: ${status}`);
+                    console.log(`[Pusher] Ending call state due to webhook status: ${status}`);
                     cleanUpCallState(`Pusher remote status: ${status}`);
                 }
             };
 
-            // Listeners
             channel.listen('CallStatusUpdated', handleCallStatusUpdate);
             channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
             channel.listen('.call.status.updated', handleCallStatusUpdate);
 
-            console.log("Listeners successfully bound to channel.");
-
         } catch (error) {
-            console.error("Echo Setup Failed with fatal error:", error);
-            alert("Echo initialization crash: " + error.message);
+            console.error("Echo Setup Failed:", error);
         }
 
         return () => {
             if (echoInstanceRef.current) {
-                console.log("Leaving Pusher Channel: vonage-calls");
                 echoInstanceRef.current.leaveChannel('vonage-calls');
             }
         };
     }, []);
 
     const stopAllSounds = () => {
+        console.log("Stopping all sounds...");
         if (ringtoneAudioRef.current) {
             ringtoneAudioRef.current.pause();
             ringtoneAudioRef.current.currentTime = 0;
@@ -120,7 +103,6 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // UI ko clean aur close karne ke liye absolute cleanup function
     const cleanUpCallState = (reason = "Unknown Reason") => {
         console.log(`[Call Cleanup] Reason: ${reason}`);
         stopAllSounds();
@@ -140,51 +122,53 @@ export const CallProvider = ({ children }) => {
     };
 
     const attachAudioStream = (call) => {
-        if (call && remoteAudioRef.current) {
-            const stream = call.htmlAudio?.srcObject || call.stream;
-            if (stream) {
-                remoteAudioRef.current.srcObject = stream;
-            } else if (typeof call.setAudioElement === 'function') {
-                call.setAudioElement(remoteAudioRef.current);
-            }
+        if (!call) return;
+        console.log("Attempting to attach audio stream...");
+        
+        const stream = call.htmlAudio?.srcObject || call.stream;
+        if (stream && remoteAudioRef.current) {
+            console.log("Stream found, playing in element.");
+            remoteAudioRef.current.srcObject = stream;
+        } else if (typeof call.setAudioElement === 'function' && remoteAudioRef.current) {
+            console.log("Using setAudioElement for stream setup.");
+            call.setAudioElement(remoteAudioRef.current);
         }
     };
 
-    // Global Conversation/Member event listener
-    const listenToGlobalSessionEvents = (session) => {
-        if (!session) return;
-
-        session.on("conversation:member:joined", (member, event) => {
-            console.log("Global Member Joined Session:", member);
-        });
-
-        session.on("conversation:member:left", (member, event) => {
-            console.log("Global Member Left Session:", member);
-            cleanUpCallState("Client disconnected (left session)");
-        });
-    };
-
-    // Call ke direct events bind karne ka safe tarika
+    // Call ke events ko bilkul bulletproof bind karne ka naya function
     const bindDirectCallEvents = (call) => {
         if (!call) return;
+        console.log("Binding events directly to Call Object:", call);
 
+        // 1. WebRTC stream ready hone par play karein
         call.on('member:media', (member, event) => {
-            console.log("Media stream event triggered");
+            console.log("Event: member:media triggered!");
             attachAudioStream(call);
         });
 
-        call.on('member:state', (member, event) => {
-            const state = (event?.body?.status || member.state || "").toLowerCase();
-            console.log(`[Call Member State Update]: ${state}`);
+        // 2. Member status updates (Jab remote user respond kare)
+        call.on('member:updated', (member, event) => {
+            console.log("Event: member:updated triggered. Member state:", member.state);
+            const state = (member.state || "").toLowerCase();
 
             if (['answered', 'joined'].includes(state)) {
+                console.log("!!! CALL ANSWERED (MEMBER UPDATED) !!!");
                 stopAllSounds();
                 attachAudioStream(call);
-                
-                setCallState(prev => ({
-                    ...prev,
-                    status: 'active'
-                }));
+                setCallState(prev => ({ ...prev, status: 'active' }));
+            }
+        });
+
+        // 3. Purane formats ke liye safety listeners
+        call.on('member:state', (member, event) => {
+            const state = (event?.body?.status || member.state || "").toLowerCase();
+            console.log(`Event: member:state changed to: ${state}`);
+
+            if (['answered', 'joined'].includes(state)) {
+                console.log("!!! CALL ANSWERED (MEMBER STATE) !!!");
+                stopAllSounds();
+                attachAudioStream(call);
+                setCallState(prev => ({ ...prev, status: 'active' }));
             } 
             else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
                 cleanUpCallState(`Call state ended with: ${state}`);
@@ -193,9 +177,10 @@ export const CallProvider = ({ children }) => {
 
         call.on('status:changed', (status) => {
             const s = status.toLowerCase();
-            console.log(`[Call Status Changed]: ${s}`);
+            console.log(`Event: status:changed to: ${s}`);
 
             if (['answered', 'joined', 'active'].includes(s)) {
+                console.log("!!! CALL ANSWERED (STATUS CHANGED) !!!");
                 stopAllSounds();
                 attachAudioStream(call);
                 setCallState(prev => ({ ...prev, status: 'active' }));
@@ -203,6 +188,20 @@ export const CallProvider = ({ children }) => {
             else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
                 cleanUpCallState(`Status changed to: ${s}`);
             }
+        });
+    };
+
+    // Global Conversation/Member event listener
+    const listenToGlobalSessionEvents = (session) => {
+        if (!session) return;
+
+        session.on("conversation:member:joined", (member, event) => {
+            console.log("Global Event: Member Joined Session:", member);
+        });
+
+        session.on("conversation:member:left", (member, event) => {
+            console.log("Global Event: Member Left Session:", member);
+            cleanUpCallState("Client disconnected (left session)");
         });
     };
 
@@ -215,7 +214,7 @@ export const CallProvider = ({ children }) => {
                 const response = await api.get('/communications/voice-token');
                 if (!response.data?.token) return;
 
-                const nexmo = new NexmoClient({ debug: false });
+                const nexmo = new NexmoClient({ debug: true }); // Debug on kiya taake console me exact library behavior dikhe
                 nexmoClientRef.current = nexmo;
 
                 clientApp = await nexmo.createSession(response.data.token);
@@ -225,9 +224,10 @@ export const CallProvider = ({ children }) => {
 
                 listenToGlobalSessionEvents(clientApp);
 
-                // INBOUND CALLS (Client Call To Us)
+                // INBOUND CALLS
                 clientApp.on("member:call", (member, call) => {
                     if (call.direction === "inbound") {
+                        console.log("Inbound Call Detected!");
                         activeCallRef.current = call;
 
                         setCallState({
@@ -240,11 +240,18 @@ export const CallProvider = ({ children }) => {
 
                         if (ringtoneAudioRef.current) {
                             ringtoneAudioRef.current.loop = true;
-                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
+                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone play error:", e));
                         }
 
                         bindDirectCallEvents(call);
                     }
+                });
+
+                // OUTBOUND CALL TRUCKING (YAHAN SE KOI BHI NAYA OUTBOUND LEG DIRECT DETECT HOGA)
+                clientApp.on("call:created", (call) => {
+                    console.log("Outbound Call Created globally on Client:", call);
+                    activeCallRef.current = call;
+                    bindDirectCallEvents(call);
                 });
 
             } catch (error) {
@@ -259,7 +266,7 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // OUTBOUND CALLS (We Call Customer)
+    // OUTBOUND CALLS
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
             console.warn("Voice server abhi tayyar nahi hai.");
@@ -277,20 +284,23 @@ export const CallProvider = ({ children }) => {
         }
 
         const formattedNumber = phoneNumber.replace(/\D/g, '');
+        
+        // Ringing state set karein
         setCallState({ status: 'ringing', phoneNumber: formattedNumber, clientName, isMuted: false });
         setShowCallWidget(true);
 
         if (ringbackAudioRef.current) {
             ringbackAudioRef.current.loop = true;
-            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound error:", e));
+            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
         }
 
         try {
+            console.log(`Placing Outbound Call to: ${formattedNumber}`);
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
+            
             activeCallRef.current = call;
-
             bindDirectCallEvents(call);
 
         } catch (error) {
