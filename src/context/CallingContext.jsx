@@ -16,21 +16,19 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
-    
-    // Sounds & WebRTC Audio Elements Refs
-    const ringtoneAudioRef = useRef(null);   // Jab customer call kare (Incoming)
-    const ringbackAudioRef = useRef(null);   // Jab hum customer ko call karein (Outbound Ringing)
-    const remoteAudioRef = useRef(null);     // WebRTC call audio stream output karne ke liye
+    const activeConversationRef = useRef(null); // Conversation tracker taake status events miss na hon
+
+    const ringtoneAudioRef = useRef(null);   
+    const ringbackAudioRef = useRef(null);   
+    const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
 
     useEffect(() => {
         isMountedRef.current = true;
         
-        // Sounds paths
         ringtoneAudioRef.current = new Audio('/sounds/ringtone.mp3'); 
         ringbackAudioRef.current = new Audio('/sounds/ringback.mp3'); 
 
-        // WebRTC ka audio track play karne ke liye invisible Audio element create karna
         const audioEl = document.createElement('audio');
         audioEl.autoplay = true;
         remoteAudioRef.current = audioEl;
@@ -39,9 +37,7 @@ export const CallProvider = ({ children }) => {
         return () => {
             isMountedRef.current = false;
             stopAllSounds();
-            if (audioEl) {
-                audioEl.remove();
-            }
+            if (audioEl) audioEl.remove();
         };
     }, []);
 
@@ -56,17 +52,18 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // FIXED: Cleanup state with immediate state updates
+    // UI ko clean aur close karne ke liye absolute cleanup function
     const cleanUpCallState = () => {
-        console.log("Cleaning up call state, hiding popup...");
+        console.log("Cleaning up call state immediately...");
         stopAllSounds();
         activeCallRef.current = null;
+        activeConversationRef.current = null;
 
         if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = null; // Audio stream disconnect karein
+            remoteAudioRef.current.srcObject = null;
         }
 
-        // Force react state to trigger immediately
+        // State update using functional update to prevent React state batching issues
         setShowCallWidget(false);
         setCallState({ 
             status: 'idle', 
@@ -76,7 +73,6 @@ export const CallProvider = ({ children }) => {
         });
     };
 
-    // Helper to attach WebRTC stream to HTML audio element
     const attachAudioStream = (call) => {
         if (call && remoteAudioRef.current) {
             const stream = call.htmlAudio?.srcObject || call.stream;
@@ -86,6 +82,43 @@ export const CallProvider = ({ children }) => {
                 call.setAudioElement(remoteAudioRef.current);
             }
         }
+    };
+
+    // Conversation events register karne ka common function (Both Inbound & Outbound)
+    const registerConversationEvents = (conversation) => {
+        if (!conversation) return;
+        activeConversationRef.current = conversation;
+
+        // Jab conversation (call) me koi bhi change aaye (Answer, Hangup, Cancel, Reject)
+        conversation.on('member:state', (member, event) => {
+            if (!isMountedRef.current) return;
+            
+            const state = (event?.body?.status || member.state || "").toLowerCase();
+            const memberId = member.id;
+            const myMemberId = conversation.me?.id;
+
+            console.log(`Conversation Member State Changed [Member: ${memberId}]:`, state);
+
+            // 1. CALL CONNECTED (Attended / Answered)
+            if (['answered', 'joined'].includes(state)) {
+                console.log("Call was answered by destination!");
+                stopAllSounds();
+                // Audio stream attach karna zaroori hai tabhi awaz aayegi
+                if (activeCallRef.current) attachAudioStream(activeCallRef.current);
+                
+                setCallState(prev => ({
+                    ...prev,
+                    status: 'active'
+                }));
+            }
+            
+            // 2. CALL DISCONNECTED (Client cut call, Rejected, Completed, or Timeout)
+            if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
+                // Agar doosra banda left kar gaya ya call end ho gayi
+                console.log("Call disconnected from client side. Cleaning up UI...");
+                cleanUpCallState();
+            }
+        });
     };
 
     useEffect(() => {
@@ -104,14 +137,14 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                // Handle INBOUND CALLS (Jab customer call kare)
+                // INBOUND CALLS (Customer Call To Us)
                 clientApp.on("member:call", (member, call) => {
                     if (call.direction === "inbound") {
                         activeCallRef.current = call;
 
                         setCallState({
                             status: 'incoming',
-                            phoneNumber: call.from || 'Unknown Customer',
+                            phoneNumber: call.from || 'Unknown',
                             clientName: "Incoming Call",
                             isMuted: false
                         });
@@ -119,31 +152,11 @@ export const CallProvider = ({ children }) => {
 
                         if (ringtoneAudioRef.current) {
                             ringtoneAudioRef.current.loop = true;
-                            ringtoneAudioRef.current.play().catch(e => console.log("Audio play deferred:", e));
+                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
                         }
 
-                        // INBOUND Event Listeners
-                        call.on('member:state', (memberObj, event) => {
-                            const state = (memberObj.state || event?.body?.status || "").toLowerCase();
-                            console.log("Inbound Member State Update:", state);
-
-                            if (['left', 'completed', 'canceled', 'rejected'].includes(state)) {
-                                cleanUpCallState();
-                            }
-                        });
-
-                        call.on('status:changed', (status) => {
-                            const s = status.toLowerCase();
-                            console.log("Inbound Call Status Update:", s);
-
-                            if (['answered', 'active', 'joined'].includes(s)) {
-                                stopAllSounds();
-                                attachAudioStream(call);
-                                setCallState(prev => ({ ...prev, status: 'active' }));
-                            } else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left'].includes(s)) {
-                                cleanUpCallState();
-                            }
-                        });
+                        // Conversation events connect karein
+                        registerConversationEvents(call.conversation);
                     }
                 });
 
@@ -159,7 +172,7 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // OUTBOUND CALLS (React se Customer ko call lagana)
+    // OUTBOUND CALLS (We Call Customer)
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
             alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
@@ -172,7 +185,7 @@ export const CallProvider = ({ children }) => {
             await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (err) {
             console.error("Mic Error:", err);
-            return alert("Microphone ki permission required hai! Browser settings mein mic allow karein.");
+            return alert("Microphone ki permission required hai!");
         }
 
         const formattedNumber = phoneNumber.replace(/\D/g, '');
@@ -185,6 +198,7 @@ export const CallProvider = ({ children }) => {
         }
 
         try {
+            // Outbound Call initiate ki
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
@@ -194,27 +208,15 @@ export const CallProvider = ({ children }) => {
                 attachAudioStream(call);
             });
 
-            // FIXED: Pure State management update within WebRTC context
-            call.on('member:state', (member, event) => {
-                const currentState = (event?.body?.status || member.state || "").toLowerCase();
-                console.log("Outbound Member State Update:", currentState);
+            // Is call ki conversation ke events monitor karein (Connect/Disconnect tracking)
+            if (call.conversation) {
+                registerConversationEvents(call.conversation);
+            }
 
-                if (['answered', 'joined'].includes(currentState)) {
-                    stopAllSounds(); 
-                    attachAudioStream(call);
-                    // Explicitly call state update so popup switches state
-                    setCallState(prev => ({ ...prev, status: 'active' }));
-                } 
-                else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(currentState)) {
-                    console.log("Closing popup now...");
-                    cleanUpCallState();
-                }
-            });
-
-            // FIXED: Fallback listeners on direct call state change
+            // Call Level Direct Status Fallback listeners
             call.on('status:changed', (status) => {
                 const s = status.toLowerCase();
-                console.log("Outbound Call Status Update:", s);
+                console.log("Direct Call Status Changed:", s);
 
                 if (['answered', 'joined', 'active'].includes(s)) {
                     stopAllSounds();
@@ -222,14 +224,8 @@ export const CallProvider = ({ children }) => {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 } 
                 else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
-                    console.log("Closing popup on status change:", s);
                     cleanUpCallState();
                 }
-            });
-
-            call.on('error', (error) => {
-                console.error("Call Encountered an Error:", error);
-                cleanUpCallState();
             });
 
         } catch (error) {
@@ -255,9 +251,9 @@ export const CallProvider = ({ children }) => {
     };
 
     const endCall = () => {
-        console.log("Manual end call triggered");
+        console.log("Manual end call triggered by agent");
         const call = activeCallRef.current;
-        cleanUpCallState(); // Isko foran call karein taake popup usi waqt gayab ho jaye
+        cleanUpCallState(); // UI ko fauran reset karein
 
         if (!call) return;
         try {
