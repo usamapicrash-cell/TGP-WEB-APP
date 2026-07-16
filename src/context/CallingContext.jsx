@@ -16,7 +16,6 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
-    const activeConversationRef = useRef(null); // Conversation tracker taake status events miss na hon
 
     const ringtoneAudioRef = useRef(null);   
     const ringbackAudioRef = useRef(null);   
@@ -53,17 +52,15 @@ export const CallProvider = ({ children }) => {
     };
 
     // UI ko clean aur close karne ke liye absolute cleanup function
-    const cleanUpCallState = () => {
-        console.log("Cleaning up call state immediately...");
+    const cleanUpCallState = (reason = "Unknown Reason") => {
+        console.log(`[Call Cleanup] Reason: ${reason}`);
         stopAllSounds();
         activeCallRef.current = null;
-        activeConversationRef.current = null;
 
         if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = null;
         }
 
-        // State update using functional update to prevent React state batching issues
         setShowCallWidget(false);
         setCallState({ 
             status: 'idle', 
@@ -84,39 +81,69 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Conversation events register karne ka common function (Both Inbound & Outbound)
-    const registerConversationEvents = (conversation) => {
-        if (!conversation) return;
-        activeConversationRef.current = conversation;
+    // Global Conversation/Member event listener jo pure Nexmo Session par listen karega
+    const listenToGlobalSessionEvents = (session) => {
+        if (!session) return;
 
-        // Jab conversation (call) me koi bhi change aaye (Answer, Hangup, Cancel, Reject)
-        conversation.on('member:state', (member, event) => {
-            if (!isMountedRef.current) return;
-            
+        // Sabse important event jo user ke call uthane ya kaatne par triggers bhejta hai
+        session.on("conversation:member:joined", (member, event) => {
+            console.log("Global Member Joined Session:", member);
+        });
+
+        session.on("conversation:member:left", (member, event) => {
+            console.log("Global Member Left Session:", member);
+            alert("Client ne call cut kar di hai!");
+            cleanUpCallState("Client disconnected (left session)");
+        });
+    };
+
+    // Call ke direct events bind karne ka safe tarika
+    const bindDirectCallEvents = (call) => {
+        if (!call) return;
+
+        // 1. WebRTC stream ready hone par stream attach karein
+        call.on('member:media', (member, event) => {
+            console.log("Media stream event triggered");
+            attachAudioStream(call);
+        });
+
+        // 2. State change (Direct Call Member Update)
+        call.on('member:state', (member, event) => {
             const state = (event?.body?.status || member.state || "").toLowerCase();
-            const memberId = member.id;
-            const myMemberId = conversation.me?.id;
+            console.log(`[Call Member State Update]: ${state}`);
 
-            console.log(`Conversation Member State Changed [Member: ${memberId}]:`, state);
-
-            // 1. CALL CONNECTED (Attended / Answered)
             if (['answered', 'joined'].includes(state)) {
-                console.log("Call was answered by destination!");
                 stopAllSounds();
-                // Audio stream attach karna zaroori hai tabhi awaz aayegi
-                if (activeCallRef.current) attachAudioStream(activeCallRef.current);
+                attachAudioStream(call);
                 
+                // CLIENT NE CALL UTHALI
+                alert("Client ne call utha li hai (Attended)!");
+
                 setCallState(prev => ({
                     ...prev,
                     status: 'active'
                 }));
+            } 
+            else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
+                // CLIENT NE CALL CUT KI YA REJECT KI
+                alert(`Call End ho gayi hai! Reason: ${state}`);
+                cleanUpCallState(`Call state ended with: ${state}`);
             }
-            
-            // 2. CALL DISCONNECTED (Client cut call, Rejected, Completed, or Timeout)
-            if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
-                // Agar doosra banda left kar gaya ya call end ho gayi
-                console.log("Call disconnected from client side. Cleaning up UI...");
-                cleanUpCallState();
+        });
+
+        // 3. Status Changed (Vonage SIP levels status tracking)
+        call.on('status:changed', (status) => {
+            const s = status.toLowerCase();
+            console.log(`[Call Status Changed]: ${s}`);
+
+            if (['answered', 'joined', 'active'].includes(s)) {
+                stopAllSounds();
+                attachAudioStream(call);
+                setCallState(prev => ({ ...prev, status: 'active' }));
+            } 
+            else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
+                alert(`Call disconnect ho gayi! (Status: ${s})`);
+                cleanUpCallState(`Status changed to: ${s}`);
             }
         });
     };
@@ -137,7 +164,10 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                // INBOUND CALLS (Customer Call To Us)
+                // Session level tracking active karein
+                listenToGlobalSessionEvents(clientApp);
+
+                // INBOUND CALLS (Client Call To Us)
                 clientApp.on("member:call", (member, call) => {
                     if (call.direction === "inbound") {
                         activeCallRef.current = call;
@@ -155,8 +185,8 @@ export const CallProvider = ({ children }) => {
                             ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
                         }
 
-                        // Conversation events connect karein
-                        registerConversationEvents(call.conversation);
+                        // Direct events bind karein
+                        bindDirectCallEvents(call);
                     }
                 });
 
@@ -198,39 +228,19 @@ export const CallProvider = ({ children }) => {
         }
 
         try {
-            // Outbound Call initiate ki
+            // Outbound Call connect/fire karna
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
             activeCallRef.current = call;
 
-            call.on('member:media', (member, event) => {
-                attachAudioStream(call);
-            });
-
-            // Is call ki conversation ke events monitor karein (Connect/Disconnect tracking)
-            if (call.conversation) {
-                registerConversationEvents(call.conversation);
-            }
-
-            // Call Level Direct Status Fallback listeners
-            call.on('status:changed', (status) => {
-                const s = status.toLowerCase();
-                console.log("Direct Call Status Changed:", s);
-
-                if (['answered', 'joined', 'active'].includes(s)) {
-                    stopAllSounds();
-                    attachAudioStream(call);
-                    setCallState(prev => ({ ...prev, status: 'active' }));
-                } 
-                else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
-                    cleanUpCallState();
-                }
-            });
+            // Is outbound call par direct events/alerts register karein
+            bindDirectCallEvents(call);
 
         } catch (error) {
             console.error("Failed to establish call:", error);
-            cleanUpCallState();
+            alert("Call Server se connect nahi ho saki!");
+            cleanUpCallState("Server call fail");
         }
     };
 
@@ -240,6 +250,7 @@ export const CallProvider = ({ children }) => {
 
             activeCallRef.current.answer()
                 .then(() => {
+                    alert("Aapne Call Answer (Attend) kar li hai!");
                     attachAudioStream(activeCallRef.current);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 })
@@ -251,9 +262,11 @@ export const CallProvider = ({ children }) => {
     };
 
     const endCall = () => {
-        console.log("Manual end call triggered by agent");
+        console.log("Manual end call triggered");
+        alert("Aapne call end/cut kar di!");
+        
         const call = activeCallRef.current;
-        cleanUpCallState(); // UI ko fauran reset karein
+        cleanUpCallState("Agent ended call"); // UI foran reset karein
 
         if (!call) return;
         try {
