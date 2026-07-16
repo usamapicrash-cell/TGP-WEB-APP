@@ -136,60 +136,52 @@ export const CallProvider = ({ children }) => {
     };
 
     // Call ke events ko bilkul bulletproof bind karne ka naya function
-    const bindDirectCallEvents = (call) => {
-        if (!call) return;
-        console.log("Binding events directly to Call Object:", call);
+    // 1. Updated and Bulletproof Call Event Binder
+const bindDirectCallEvents = (call) => {
+    if (!call) return;
+    console.log("Binding events directly to Call Object:", call);
 
-        // 1. WebRTC stream ready hone par play karein
-        call.on('member:media', (member, event) => {
-            console.log("Event: member:media triggered!");
+    // Stream ready hone par audio play karein
+    call.on('member:media', (member, event) => {
+        console.log("Event: member:media triggered!");
+        attachAudioStream(call);
+    });
+
+    // Jab koi member call join kare (chahe inbound ho ya outbound)
+    call.on('member:joined', (member) => {
+        console.log("Event: member:joined -> Name:", member.user.name, "State:", member.state);
+        
+        // Agar remote user join ho gaya hai (Answered State)
+        if (member.user.name !== 'tgp_portal_user') { 
+            console.log("!!! REMOTE USER HAS JOINED / ANSWERED !!!");
+            stopAllSounds();
             attachAudioStream(call);
-        });
+            setCallState(prev => ({
+                ...prev,
+                status: 'active'
+            }));
+        }
+    });
 
-        // 2. Member status updates (Jab remote user respond kare)
-        call.on('member:updated', (member, event) => {
-            console.log("Event: member:updated triggered. Member state:", member.state);
-            const state = (member.state || "").toLowerCase();
+    // Jab member update ho (Fallback mechanism for answer state)
+    call.on('member:updated', (member) => {
+        console.log("Event: member:updated -> State:", member.state);
+        const state = (member.state || "").toLowerCase();
 
-            if (['answered', 'joined'].includes(state)) {
-                console.log("!!! CALL ANSWERED (MEMBER UPDATED) !!!");
-                stopAllSounds();
-                attachAudioStream(call);
-                setCallState(prev => ({ ...prev, status: 'active' }));
-            }
-        });
+        if (['answered', 'joined'].includes(state)) {
+            console.log("!!! CALL ANSWERED (MEMBER UPDATED) !!!");
+            stopAllSounds();
+            attachAudioStream(call);
+            setCallState(prev => ({ ...prev, status: 'active' }));
+        }
+    });
 
-        // 3. Purane formats ke liye safety listeners
-        call.on('member:state', (member, event) => {
-            const state = (event?.body?.status || member.state || "").toLowerCase();
-            console.log(`Event: member:state changed to: ${state}`);
-
-            if (['answered', 'joined'].includes(state)) {
-                console.log("!!! CALL ANSWERED (MEMBER STATE) !!!");
-                stopAllSounds();
-                attachAudioStream(call);
-                setCallState(prev => ({ ...prev, status: 'active' }));
-            } 
-            else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
-                cleanUpCallState(`Call state ended with: ${state}`);
-            }
-        });
-
-        call.on('status:changed', (status) => {
-            const s = status.toLowerCase();
-            console.log(`Event: status:changed to: ${s}`);
-
-            if (['answered', 'joined', 'active'].includes(s)) {
-                console.log("!!! CALL ANSWERED (STATUS CHANGED) !!!");
-                stopAllSounds();
-                attachAudioStream(call);
-                setCallState(prev => ({ ...prev, status: 'active' }));
-            } 
-            else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
-                cleanUpCallState(`Status changed to: ${s}`);
-            }
-        });
-    };
+    // Call Hangup / Disconnect states
+    call.on('member:left', (member) => {
+        console.log("Event: member:left -> Member left the call.");
+        cleanUpCallState("Remote party left the call");
+    });
+};
 
     // Global Conversation/Member event listener
     const listenToGlobalSessionEvents = (session) => {
@@ -268,46 +260,68 @@ export const CallProvider = ({ children }) => {
 
     // OUTBOUND CALLS
     const makeCall = async (phoneNumber, clientName) => {
-        if (!voiceAppRef.current) {
-            console.warn("Voice server abhi tayyar nahi hai.");
-            return;
-        }
-        if (!phoneNumber) return;
-        if (callState.status !== 'idle') return;
+    if (!voiceAppRef.current) {
+        console.warn("Voice server abhi tayyar nahi hai.");
+        return;
+    }
+    if (!phoneNumber) return;
+    if (callState.status !== 'idle') return;
 
-        try {
-            await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (err) {
-            console.error("Mic Error:", err);
-            alert("Microphone permission are required to place calls!");
-            return;
-        }
+    try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+        console.error("Mic Error:", err);
+        alert("Microphone permission is required to place calls!");
+        return;
+    }
 
-        const formattedNumber = phoneNumber.replace(/\D/g, '');
+    const formattedNumber = phoneNumber.replace(/\D/g, '');
+    
+    // Sabse pehle local state ko ringing karein aur ringback tone chalayein
+    setCallState({ 
+        status: 'ringing', 
+        phoneNumber: formattedNumber, 
+        clientName: clientName || 'Customer', 
+        isMuted: false 
+    });
+    setShowCallWidget(true);
+
+    if (ringbackAudioRef.current) {
+        ringbackAudioRef.current.loop = true;
+        ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
+    }
+
+    try {
+        console.log(`Placing Outbound Call to: ${formattedNumber}`);
         
-        // Ringing state set karein
-        setCallState({ status: 'ringing', phoneNumber: formattedNumber, clientName, isMuted: false });
-        setShowCallWidget(true);
+        // Vonage call routing setup
+        const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
+            number: formattedNumber
+        });
+        
+        activeCallRef.current = call;
+        
+        // Events connect karein jo upar update kiye hain
+        bindDirectCallEvents(call);
 
-        if (ringbackAudioRef.current) {
-            ringbackAudioRef.current.loop = true;
-            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
-        }
-
-        try {
-            console.log(`Placing Outbound Call to: ${formattedNumber}`);
-            const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
-                number: formattedNumber
+        // EXTRA SAFETY: Call object ke conversation level par direct listen karein
+        if (call.conversation) {
+            console.log("Binding to call.conversation events");
+            call.conversation.on('member:joined', (member) => {
+                console.log("Conversation Level Event: member:joined -> State:", member.state);
+                if (member.user.name !== 'tgp_portal_user') {
+                    stopAllSounds();
+                    attachAudioStream(call);
+                    setCallState(prev => ({ ...prev, status: 'active' }));
+                }
             });
-            
-            activeCallRef.current = call;
-            bindDirectCallEvents(call);
-
-        } catch (error) {
-            console.error("Failed to establish call:", error);
-            cleanUpCallState("Server call fail");
         }
-    };
+
+    } catch (error) {
+        console.error("Failed to establish call:", error);
+        cleanUpCallState("Server call fail");
+    }
+};
 
     const answerCall = () => {
         if (activeCallRef.current && callState.status === 'incoming') {
