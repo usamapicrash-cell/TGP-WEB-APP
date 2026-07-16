@@ -4,16 +4,8 @@ import api from '../api/axios';
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
-// 1. Pusher globally bind karein
+// 1. Pusher globally bind karein securely
 window.Pusher = Pusher;
-
-// 2. Laravel Echo instance create karein jo .env variables use karega
-const echoInstance = new Echo({
-    broadcaster: 'pusher',
-    key: import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813',
-    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2',
-    forceTLS: true
-});
 
 const CallContext = createContext();
 
@@ -29,6 +21,7 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
+    const echoInstanceRef = useRef(null); // Echo ke liye Ref banayi taake crash na ho
 
     const ringtoneAudioRef = useRef(null);   
     const ringbackAudioRef = useRef(null);   
@@ -54,39 +47,65 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // 3. Pusher (Laravel Echo) Webhook Listener
-    // Jab backend (Laravel) par completed/busy ka webhook aayega, yeh real-time trigger hoga
-    // 3. Pusher (Laravel Echo) Webhook Listener
+    // 3. Pusher (Laravel Echo) Webhook Listener Setup inside useEffect for Safety
     useEffect(() => {
-        console.log("Connecting to Pusher Channel: vonage-calls...");
-        
-        // Channel ko humesha safely join karein
-        const channel = echoInstance.channel('vonage-calls');
-        
-        // Dono formats (with and without dot) ko handle karne ke liye hum check laga rahe hain
-        const handleCallStatusUpdate = (data) => {
-            console.log("Real-time call status received via Pusher:", data);
-            
-            // Jo status backend se aa raha hai use lowercase karke match karein
-            const status = (data.status || data.call_status || '').toLowerCase();
-            const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer'];
-            
-            if (endStates.includes(status)) {
-                console.log(`[Pusher] Call ended remotely with status: ${status}`);
-                cleanUpCallState(`Pusher remote status: ${status}`);
+        console.log("Starting Pusher setup...");
+        alert("Pusher initialization started! (Check Console)");
+
+        try {
+            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
+            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2';
+
+            console.log("Pusher Config Details:", { key: pusherKey, cluster: pusherCluster });
+
+            // Safe Echo connection creation
+            if (!echoInstanceRef.current) {
+                echoInstanceRef.current = new Echo({
+                    broadcaster: 'pusher',
+                    key: pusherKey,
+                    cluster: pusherCluster,
+                    forceTLS: true,
+                    disableStats: true // Connection lag aur errors ko kam karne ke liye
+                });
             }
-        };
 
-        // Dono possibilities par listen karein taake event miss na ho
-        channel.listen('CallStatusUpdated', handleCallStatusUpdate);
-        channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
+            console.log("Echo Instance Created successfully. Joining channel: vonage-calls...");
+            const channel = echoInstanceRef.current.channel('vonage-calls');
+            
+            // Channel connectivity logging
+            echoInstanceRef.current.connector.pusher.connection.bind('state_change', (states) => {
+                console.log("Pusher connection state changed:", states);
+            });
 
-        // Custom events ke liye (agar class name different ho)
-        channel.listen('.call.status.updated', handleCallStatusUpdate); 
+            const handleCallStatusUpdate = (data) => {
+                console.log("Real-time call status received via Pusher:", data);
+                
+                const status = (data.status || data.call_status || '').toLowerCase();
+                const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer'];
+                
+                if (endStates.includes(status)) {
+                    console.log(`[Pusher] Call ended remotely with status: ${status}`);
+                    cleanUpCallState(`Pusher remote status: ${status}`);
+                }
+            };
+
+            // Listeners
+            channel.listen('CallStatusUpdated', handleCallStatusUpdate);
+            channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
+            channel.listen('.call.status.updated', handleCallStatusUpdate);
+
+            console.log("Listeners successfully bound to channel.");
+
+        } catch (error) {
+            console.error("Echo Setup Failed with fatal error:", error);
+            alert("Echo initialization crash: " + error.message);
+        }
 
         return () => {
-            console.log("Leaving Pusher Channel: vonage-calls");
-            echoInstance.leaveChannel('vonage-calls');
+            if (echoInstanceRef.current) {
+                console.log("Leaving Pusher Channel: vonage-calls");
+                echoInstanceRef.current.leaveChannel('vonage-calls');
+            }
         };
     }, []);
 
@@ -149,13 +168,11 @@ export const CallProvider = ({ children }) => {
     const bindDirectCallEvents = (call) => {
         if (!call) return;
 
-        // WebRTC stream ready hone par stream attach karein
         call.on('member:media', (member, event) => {
             console.log("Media stream event triggered");
             attachAudioStream(call);
         });
 
-        // State change tracking
         call.on('member:state', (member, event) => {
             const state = (event?.body?.status || member.state || "").toLowerCase();
             console.log(`[Call Member State Update]: ${state}`);
@@ -174,7 +191,6 @@ export const CallProvider = ({ children }) => {
             }
         });
 
-        // Vonage SIP levels status tracking
         call.on('status:changed', (status) => {
             const s = status.toLowerCase();
             console.log(`[Call Status Changed]: ${s}`);
@@ -303,7 +319,6 @@ export const CallProvider = ({ children }) => {
         console.log("Manual end call triggered");
         const call = activeCallRef.current;
         
-        // Instant React UI cleanup so there is no lag
         cleanUpCallState("Agent ended call"); 
 
         if (!call) return;
