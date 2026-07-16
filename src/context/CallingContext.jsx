@@ -56,21 +56,36 @@ export const CallProvider = ({ children }) => {
 
     // 3. Pusher (Laravel Echo) Webhook Listener
     // Jab backend (Laravel) par completed/busy ka webhook aayega, yeh real-time trigger hoga
+    // 3. Pusher (Laravel Echo) Webhook Listener
     useEffect(() => {
         console.log("Connecting to Pusher Channel: vonage-calls...");
+        
+        // Channel ko humesha safely join karein
         const channel = echoInstance.channel('vonage-calls');
         
-        channel.listen('.CallStatusUpdated', (data) => {
+        // Dono formats (with and without dot) ko handle karne ke liye hum check laga rahe hain
+        const handleCallStatusUpdate = (data) => {
             console.log("Real-time call status received via Pusher:", data);
             
-            const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed'];
-            if (endStates.includes(data.status)) {
-                console.log(`[Pusher] Call ended remotely with status: ${data.status}`);
-                cleanUpCallState(`Pusher remote status: ${data.status}`);
+            // Jo status backend se aa raha hai use lowercase karke match karein
+            const status = (data.status || data.call_status || '').toLowerCase();
+            const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer'];
+            
+            if (endStates.includes(status)) {
+                console.log(`[Pusher] Call ended remotely with status: ${status}`);
+                cleanUpCallState(`Pusher remote status: ${status}`);
             }
-        });
+        };
+
+        // Dono possibilities par listen karein taake event miss na ho
+        channel.listen('CallStatusUpdated', handleCallStatusUpdate);
+        channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
+
+        // Custom events ke liye (agar class name different ho)
+        channel.listen('.call.status.updated', handleCallStatusUpdate); 
 
         return () => {
+            console.log("Leaving Pusher Channel: vonage-calls");
             echoInstance.leaveChannel('vonage-calls');
         };
     }, []);
