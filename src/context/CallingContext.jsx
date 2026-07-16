@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import NexmoClient from 'nexmo-client';
 import api from '../api/axios';
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+// 1. Pusher globally bind karein
+window.Pusher = Pusher;
+
+// 2. Laravel Echo instance create karein jo .env variables use karega
+const echoInstance = new Echo({
+    broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813',
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2',
+    forceTLS: true
+});
 
 const CallContext = createContext();
 
@@ -22,6 +35,7 @@ export const CallProvider = ({ children }) => {
     const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
 
+    // Audio initializations
     useEffect(() => {
         isMountedRef.current = true;
         
@@ -37,6 +51,27 @@ export const CallProvider = ({ children }) => {
             isMountedRef.current = false;
             stopAllSounds();
             if (audioEl) audioEl.remove();
+        };
+    }, []);
+
+    // 3. Pusher (Laravel Echo) Webhook Listener
+    // Jab backend (Laravel) par completed/busy ka webhook aayega, yeh real-time trigger hoga
+    useEffect(() => {
+        console.log("Connecting to Pusher Channel: vonage-calls...");
+        const channel = echoInstance.channel('vonage-calls');
+        
+        channel.listen('.CallStatusUpdated', (data) => {
+            console.log("Real-time call status received via Pusher:", data);
+            
+            const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed'];
+            if (endStates.includes(data.status)) {
+                console.log(`[Pusher] Call ended remotely with status: ${data.status}`);
+                cleanUpCallState(`Pusher remote status: ${data.status}`);
+            }
+        });
+
+        return () => {
+            echoInstance.leaveChannel('vonage-calls');
         };
     }, []);
 
@@ -81,18 +116,16 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Global Conversation/Member event listener jo pure Nexmo Session par listen karega
+    // Global Conversation/Member event listener
     const listenToGlobalSessionEvents = (session) => {
         if (!session) return;
 
-        // Sabse important event jo user ke call uthane ya kaatne par triggers bhejta hai
         session.on("conversation:member:joined", (member, event) => {
             console.log("Global Member Joined Session:", member);
         });
 
         session.on("conversation:member:left", (member, event) => {
             console.log("Global Member Left Session:", member);
-            alert("Client ne call cut kar di hai!");
             cleanUpCallState("Client disconnected (left session)");
         });
     };
@@ -101,13 +134,13 @@ export const CallProvider = ({ children }) => {
     const bindDirectCallEvents = (call) => {
         if (!call) return;
 
-        // 1. WebRTC stream ready hone par stream attach karein
+        // WebRTC stream ready hone par stream attach karein
         call.on('member:media', (member, event) => {
             console.log("Media stream event triggered");
             attachAudioStream(call);
         });
 
-        // 2. State change (Direct Call Member Update)
+        // State change tracking
         call.on('member:state', (member, event) => {
             const state = (event?.body?.status || member.state || "").toLowerCase();
             console.log(`[Call Member State Update]: ${state}`);
@@ -116,22 +149,17 @@ export const CallProvider = ({ children }) => {
                 stopAllSounds();
                 attachAudioStream(call);
                 
-                // CLIENT NE CALL UTHALI
-                alert("Client ne call utha li hai (Attended)!");
-
                 setCallState(prev => ({
                     ...prev,
                     status: 'active'
                 }));
             } 
             else if (['left', 'completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'canceled'].includes(state)) {
-                // CLIENT NE CALL CUT KI YA REJECT KI
-                alert(`Call End ho gayi hai! Reason: ${state}`);
                 cleanUpCallState(`Call state ended with: ${state}`);
             }
         });
 
-        // 3. Status Changed (Vonage SIP levels status tracking)
+        // Vonage SIP levels status tracking
         call.on('status:changed', (status) => {
             const s = status.toLowerCase();
             console.log(`[Call Status Changed]: ${s}`);
@@ -142,12 +170,12 @@ export const CallProvider = ({ children }) => {
                 setCallState(prev => ({ ...prev, status: 'active' }));
             } 
             else if (['completed', 'rejected', 'failed', 'busy', 'timeout', 'unanswered', 'left', 'cancelled'].includes(s)) {
-                alert(`Call disconnect ho gayi! (Status: ${s})`);
                 cleanUpCallState(`Status changed to: ${s}`);
             }
         });
     };
 
+    // Vonage Client Initialization
     useEffect(() => {
         let clientApp = null;
 
@@ -164,7 +192,6 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                // Session level tracking active karein
                 listenToGlobalSessionEvents(clientApp);
 
                 // INBOUND CALLS (Client Call To Us)
@@ -185,7 +212,6 @@ export const CallProvider = ({ children }) => {
                             ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
                         }
 
-                        // Direct events bind karein
                         bindDirectCallEvents(call);
                     }
                 });
@@ -205,17 +231,18 @@ export const CallProvider = ({ children }) => {
     // OUTBOUND CALLS (We Call Customer)
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current) {
-            alert("Voice server abhi tayyar nahi hai. Kuch second baad dobara koshish karein.");
+            console.warn("Voice server abhi tayyar nahi hai.");
             return;
         }
-        if (!phoneNumber) return alert("Customer ka phone number missing hai!");
-        if (callState.status !== 'idle') return alert("Ek call pehle se chal rahi hai. Pehle usay end karein.");
+        if (!phoneNumber) return;
+        if (callState.status !== 'idle') return;
 
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (err) {
             console.error("Mic Error:", err);
-            return alert("Microphone ki permission required hai!");
+            alert("Microphone permission are required to place calls!");
+            return;
         }
 
         const formattedNumber = phoneNumber.replace(/\D/g, '');
@@ -228,18 +255,15 @@ export const CallProvider = ({ children }) => {
         }
 
         try {
-            // Outbound Call connect/fire karna
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
             activeCallRef.current = call;
 
-            // Is outbound call par direct events/alerts register karein
             bindDirectCallEvents(call);
 
         } catch (error) {
             console.error("Failed to establish call:", error);
-            alert("Call Server se connect nahi ho saki!");
             cleanUpCallState("Server call fail");
         }
     };
@@ -250,23 +274,22 @@ export const CallProvider = ({ children }) => {
 
             activeCallRef.current.answer()
                 .then(() => {
-                    alert("Aapne Call Answer (Attend) kar li hai!");
                     attachAudioStream(activeCallRef.current);
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 })
                 .catch((err) => {
                     console.error("Error answering call:", err);
-                    cleanUpCallState();
+                    cleanUpCallState("Answer call exception");
                 });
         }
     };
 
     const endCall = () => {
         console.log("Manual end call triggered");
-        alert("Aapne call end/cut kar di!");
-        
         const call = activeCallRef.current;
-        cleanUpCallState("Agent ended call"); // UI foran reset karein
+        
+        // Instant React UI cleanup so there is no lag
+        cleanUpCallState("Agent ended call"); 
 
         if (!call) return;
         try {
