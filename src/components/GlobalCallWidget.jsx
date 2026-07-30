@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCall } from '../context/CallingContext'; // Path verify kar lein
+import { useCall } from '../context/CallingContext'; // Path verify karein
 
 const GlobalCallWidget = () => {
     const { callState, showCallWidget, setShowCallWidget, answerCall, endCall, toggleMute } = useCall();
@@ -8,7 +8,16 @@ const GlobalCallWidget = () => {
 
     const themeColor = '#1e293b';
 
-    // Timer for active connected call
+    // Helper to safely render strings in JSX
+    const renderText = (val, fallback = '') => {
+        if (!val) return fallback;
+        if (typeof val === 'string' || typeof val === 'number') return String(val);
+        if (typeof val === 'object') {
+            return val.display_name || val.name || val.number || fallback;
+        }
+        return fallback;
+    };
+
     useEffect(() => {
         if (callState.status === 'active') {
             timerRef.current = setInterval(() => {
@@ -45,7 +54,6 @@ const GlobalCallWidget = () => {
     const isRinging = callState.status === 'ringing';
     const isIncoming = callState.status === 'incoming';
 
-    // Status Label Helper
     const getStatusBadge = () => {
         if (isIncoming) return '🔔 Incoming Call';
         if (isCalling) return '📞 Calling Customer...';
@@ -53,6 +61,9 @@ const GlobalCallWidget = () => {
         if (isActive) return `🟢 Connected (${formatDuration(elapsedSeconds)})`;
         return 'Connecting...';
     };
+
+    const displayName = renderText(callState.clientName, 'Customer');
+    const displayPhone = renderText(callState.phoneNumber, 'Private Number');
 
     // --- STAGE 1: Minimized Floating Pill ---
     if (!showCallWidget) {
@@ -75,7 +86,7 @@ const GlobalCallWidget = () => {
                 <i className={`bi ${isActive ? 'bi-telephone-fill' : 'bi-telephone-outbound-fill'} fs-5`}></i>
                 <div className="d-flex flex-column align-items-start">
                     <span style={{ fontSize: '0.85rem', fontWeight: '700', lineHeight: '1.1' }}>
-                        {callState.clientName || 'Customer'}
+                        {displayName}
                     </span>
                     <small style={{ fontSize: '0.75rem', opacity: 0.9 }}>
                         {getStatusBadge()}
@@ -133,8 +144,8 @@ const GlobalCallWidget = () => {
                     <i className="bi bi-person-fill fs-1 text-white"></i>
                 </div>
 
-                <h5 className="fw-bold mb-1 text-white text-truncate">{callState.clientName || 'Customer'}</h5>
-                <p className="text-white-50 small mb-0 font-monospace">{callState.phoneNumber || 'Private Number'}</p>
+                <h5 className="fw-bold mb-1 text-white text-truncate">{displayName}</h5>
+                <p className="text-white-50 small mb-0 font-monospace">{displayPhone}</p>
             </div>
 
             {/* Subtitle Message */}
@@ -148,7 +159,7 @@ const GlobalCallWidget = () => {
             {/* Call Action Controls */}
             <div className="d-flex justify-content-center gap-3 align-items-center">
 
-                {/* Answer Button (Only for Inbound Calls) */}
+                {/* Answer Button */}
                 {isIncoming && (
                     <button
                         className="btn btn-success rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
@@ -160,7 +171,7 @@ const GlobalCallWidget = () => {
                     </button>
                 )}
 
-                {/* Mute Button (Only for Active Calls) */}
+                {/* Mute Button */}
                 {isActive && (
                     <button
                         className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center transition-all ${
@@ -174,7 +185,7 @@ const GlobalCallWidget = () => {
                     </button>
                 )}
 
-                {/* Reject / Hangup / Cancel Button */}
+                {/* Hangup / Reject Button */}
                 <button
                     className="btn btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
                     style={{ width: '60px', height: '60px' }}

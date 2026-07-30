@@ -23,7 +23,18 @@ export const CallProvider = ({ children }) => {
     const echoInstanceRef = useRef(null); 
     const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
-    const isCleaningUpRef = useRef(false); // Flag to prevent multiple rapid cleanups
+    const isCleaningUpRef = useRef(false);
+
+    // Helper: Ensure value is ALWAYS a string and never an Object
+    const safeString = (val, fallback = '') => {
+        if (!val) return fallback;
+        if (typeof val === 'string') return val;
+        if (typeof val === 'number') return String(val);
+        if (typeof val === 'object') {
+            return val.display_name || val.name || val.number || val.id || fallback;
+        }
+        return fallback;
+    };
 
     // Remote Audio Setup
     useEffect(() => {
@@ -42,12 +53,11 @@ export const CallProvider = ({ children }) => {
 
     // Safe Cleanup Method
     const cleanUpCallState = (reason = "Unknown Reason") => {
-        if (isCleaningUpRef.current) return; // Block re-entry if already cleaning up
+        if (isCleaningUpRef.current) return;
         isCleaningUpRef.current = true;
 
         console.log(`[Call Cleanup] Reason: ${reason}`);
 
-        // Safely unbind events from call instance before setting to null
         if (activeCallRef.current) {
             try {
                 if (typeof activeCallRef.current.off === 'function') {
@@ -80,13 +90,11 @@ export const CallProvider = ({ children }) => {
             });
         }
 
-        // Reset cleanup flag after state update settles
         setTimeout(() => {
             isCleaningUpRef.current = false;
         }, 300);
     };
 
-    // Attach WebRTC Audio Stream Safely
     const attachAudioStream = (call) => {
         if (!call) return;
         try {
@@ -210,7 +218,7 @@ export const CallProvider = ({ children }) => {
                 const response = await api.get('/communications/voice-token');
                 if (!response.data?.token || !isMountedRef.current) return;
 
-                const nexmo = new NexmoClient({ debug: false }); // Set to false to reduce noise
+                const nexmo = new NexmoClient({ debug: false });
                 nexmoClientRef.current = nexmo;
 
                 clientApp = await nexmo.createSession(response.data.token);
@@ -222,9 +230,14 @@ export const CallProvider = ({ children }) => {
                 const handleIncomingCall = (member, call) => {
                     const callObj = call || member;
                     activeCallRef.current = callObj;
+
+                    // Extracted string safely using safeString helper
+                    const rawFrom = callObj?.from || callObj?.user?.name;
+                    const parsedNumber = safeString(rawFrom, 'Incoming Call');
+
                     setCallState({
                         status: 'incoming',
-                        phoneNumber: callObj?.from || 'Customer',
+                        phoneNumber: parsedNumber,
                         clientName: "Incoming Call",
                         isMuted: false
                     });
@@ -260,12 +273,13 @@ export const CallProvider = ({ children }) => {
             return;
         }
 
-        const formattedNumber = phoneNumber.replace(/\D/g, '');
+        const formattedNumber = safeString(phoneNumber).replace(/\D/g, '');
+        const formattedClientName = safeString(clientName, 'Customer');
         
         setCallState({ 
             status: 'calling', 
             phoneNumber: formattedNumber, 
-            clientName: clientName || 'Customer', 
+            clientName: formattedClientName, 
             isMuted: false 
         });
         setShowCallWidget(true);
