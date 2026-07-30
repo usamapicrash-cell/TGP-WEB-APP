@@ -16,10 +16,8 @@ const QB_COLORS = {
     purple: '#8d10ee'
 };
 
-// Dummy data for visual charts (Backend doesn't provide historical months data yet)
+// Dummy data for visual charts
 const statsData = [{ v: 40 }, { v: 70 }, { v: 50 }, { v: 90 }, { v: 60 }, { v: 80 }, { v: 100 }];
-const invoiceChartData = [ { month: 'Jan', invoices: 1200 }, { month: 'Feb', invoices: 1800 }, { month: 'Mar', invoices: 1400 }, { month: 'Apr', invoices: 2200 }, { month: 'May', invoices: 2600 } ];
-const poChartData = [ { month: 'Jan', po: 800 }, { month: 'Feb', po: 1100 }, { month: 'Mar', po: 1500 }, { month: 'Apr', po: 1300 }, { month: 'May', po: 1800 } ];
 
 // --- Skeleton Loaders ---
 const SkeletonBase = ({ style }) => (
@@ -50,7 +48,6 @@ const AdminDashboard = () => {
             setLoading(true);
             setError(null);
             try {
-                // Apna correct endpoint yahan verify kar lein
                 const response = await api.get('/dashboard-data'); 
                 if (response.data.success) {
                     setDashboardData(response.data.data);
@@ -73,19 +70,19 @@ const AdminDashboard = () => {
                 <p className="text-muted small fw-bold mb-1 text-uppercase">{title}</p>
                 <div className="d-flex justify-content-between align-items-center">
                     <div>
-                        <h3 className="fw-bold mb-0" style={{ color: QB_COLORS.dark }}>{amount}</h3>
+                        <h3 className="fw-bold mb-0 fs-4 fs-md-3" style={{ color: QB_COLORS.dark }}>{amount}</h3>
                         <span className="text-muted x-small">{subtext}</span>
                     </div>
-                    <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: '42px', height: '42px', background: `${color}15` }}>
+                    <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style={{ width: '42px', height: '42px', background: `${color}15` }}>
                         <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: color }}></div>
                     </div>
                 </div>
             </div>
-            <div style={{ width: '100%', height: '75px', marginTop: '5px' }}>
+            <div style={{ width: '100%', height: '65px', marginTop: '5px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     {chartType === "bar" ? (
                         <BarChart data={statsData}>
-                            <Bar dataKey="v" fill={color} radius={[6, 6, 0, 0]} barSize={14} />
+                            <Bar dataKey="v" fill={color} radius={[6, 6, 0, 0]} barSize={12} />
                         </BarChart>
                     ) : (
                         <AreaChart data={statsData}>
@@ -107,12 +104,12 @@ const AdminDashboard = () => {
         <div className="card border shadow-sm h-100 bg-white">
             <div className="card-body p-3">
                 <h6 className="text-muted small fw-bold text-uppercase mb-3">{title}</h6>
-                <div className="d-flex align-items-center mb-3">
-                    <div style={{ width: '110px', height: '110px' }}>
-                        <ResponsiveContainer>
+                <div className="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start mb-3 gap-3">
+                    <div style={{ width: '100px', height: '100px' }} className="flex-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Tooltip content={<CustomTooltip />} />
-                                <Pie data={data} innerRadius={35} outerRadius={50} paddingAngle={3} dataKey="value">
+                                <Pie data={data} innerRadius={30} outerRadius={45} paddingAngle={3} dataKey="value">
                                     {data.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none' }} />
                                     ))}
@@ -120,14 +117,14 @@ const AdminDashboard = () => {
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="ms-3">
-                        <h3 className="fw-bold mb-0">{totalValue}</h3>
+                    <div>
+                        <h3 className="fw-bold mb-0 fs-4">{totalValue}</h3>
                         <p className="text-muted x-small mb-0">{totalTitle}</p>
                     </div>
                 </div>
                 {data.map((item, i) => (
                     <div key={i} className="d-flex justify-content-between align-items-center mb-2">
-                        <span className="x-small text-muted">
+                        <span className="x-small text-muted text-truncate me-2" style={{ maxWidth: '150px' }}>
                             <i className="bi bi-circle-fill me-1" style={{ color: item.color, fontSize: '7px' }}></i>
                             {item.name}
                         </span>
@@ -140,8 +137,8 @@ const AdminDashboard = () => {
 
     if (error) {
         return (
-            <div className="d-flex flex-column justify-content-center align-items-center" style={{ height: '80vh' }}>
-                <div className="text-center p-5 bg-white shadow-sm rounded-4" style={{ maxWidth: '400px' }}>
+            <div className="d-flex flex-column justify-content-center align-items-center px-3" style={{ minHeight: '80vh' }}>
+                <div className="text-center p-4 p-md-5 bg-white shadow-sm rounded-4 w-100" style={{ maxWidth: '400px' }}>
                     <i className="bi bi-exclamation-octagon text-danger display-4"></i>
                     <h5 className="mt-3 fw-bold">Connection Error</h5>
                     <p className="text-muted small mb-4">{error}</p>
@@ -155,18 +152,18 @@ const AdminDashboard = () => {
 
     if (loading) {
         return (
-            <div className="container-fluid p-4">
-                <SkeletonBase style={{ width: '200px', height: '30px', marginBottom: '30px' }} />
+            <div className="container-fluid p-2 p-md-4">
+                <SkeletonBase style={{ width: '200px', height: '30px', marginBottom: '20px' }} />
                 <div className="row g-3 mb-4">
                     {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="col-md-3">
+                        <div key={i} className="col-12 col-sm-6 col-xl-3">
                             <SkeletonBase style={{ width: '100%', height: '140px' }} />
                         </div>
                     ))}
                 </div>
                 <div className="row g-3 mb-4">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="col-md-4">
+                        <div key={i} className="col-12 col-md-6 col-lg-4">
                             <SkeletonBase style={{ width: '100%', height: '250px' }} />
                         </div>
                     ))}
@@ -175,10 +172,9 @@ const AdminDashboard = () => {
         );
     }
 
-    // --- Data Mapping from API ---
+    // --- Data Mapping ---
     const stats = dashboardData?.stats || {};
     
-    // Format Lead Source Data
     const leadData = dashboardData?.regionData?.map(item => ({
         name: item.name,
         value: parseInt(item.value),
@@ -186,7 +182,6 @@ const AdminDashboard = () => {
     })) || [];
     const totalLeads = leadData.reduce((acc, curr) => acc + curr.value, 0);
 
-    // Format Work Order Stages Data
     const woColors = [QB_COLORS.orange, QB_COLORS.purple, QB_COLORS.blue, QB_COLORS.green];
     const workOrderData = dashboardData?.woStages?.map((stage, idx) => ({
         name: stage.stage,
@@ -196,19 +191,18 @@ const AdminDashboard = () => {
     const totalWO = workOrderData.reduce((acc, curr) => acc + curr.value, 0);
 
     const recentInvoices = dashboardData?.recentInvoices || [];
-    const latestPO = dashboardData?.latestPO ? [dashboardData.latestPO] : []; // Array to match mapping logic
     const appointments = dashboardData?.appointments || [];
 
     return (
-        <div className="container-fluid p-4" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+        <div className="container-fluid p-2 p-md-4 overflow-hidden" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
             <div className="mb-4 border-bottom pb-3">
-                <h3 className="fw-bold mb-0" style={{ color: QB_COLORS.dark }}>Business Overview</h3>
-                <p className="text-muted small">Real-time Financial & Operational Insights</p>
+                <h3 className="fw-bold mb-0 fs-4 fs-md-3" style={{ color: QB_COLORS.dark }}>Business Overview</h3>
+                <p className="text-muted small mb-0">Real-time Financial & Operational Insights</p>
             </div>
 
-            {/* Stats Cards */}
+            {/* Top Stats Cards */}
             <div className="row g-3 mb-4">
-                <div className="col-md-3">
+                <div className="col-12 col-sm-6 col-xl-3">
                     <MiniStatsCard
                         title="Invoiced"
                         amount={`$${stats.contract_total || '0.00'}`}
@@ -217,7 +211,7 @@ const AdminDashboard = () => {
                         chartType="bar"
                     />
                 </div>
-                <div className="col-md-3">
+                <div className="col-12 col-sm-6 col-xl-3">
                     <MiniStatsCard
                         title="Received"
                         amount={`$${stats.total_collected || '0.00'}`}
@@ -226,7 +220,7 @@ const AdminDashboard = () => {
                         chartType="area"
                     />
                 </div>
-                <div className="col-md-3">
+                <div className="col-12 col-sm-6 col-xl-3">
                     <MiniStatsCard
                         title="Outstanding"
                         amount={`$${stats.remaining_balance || '0.00'}`}
@@ -235,7 +229,7 @@ const AdminDashboard = () => {
                         chartType="bar"
                     />
                 </div>
-                <div className="col-md-3">
+                <div className="col-12 col-sm-6 col-xl-3">
                     <MiniStatsCard
                         title="Collection Rate"
                         amount={`${stats.collected_percentage || 0}%`}
@@ -246,9 +240,9 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Middle Donut Cards */}
+            {/* Middle Donut & Top Products Cards */}
             <div className="row g-3 mb-4">
-                <div className="col-md-4">
+                <div className="col-12 col-md-6 col-lg-4">
                     <DataDonut
                         title="Lead Sources"
                         totalTitle="Total Leads"
@@ -256,7 +250,7 @@ const AdminDashboard = () => {
                         data={leadData}
                     />
                 </div>
-                <div className="col-md-4">
+                <div className="col-12 col-md-6 col-lg-4">
                     <DataDonut
                         title="Work Order Stages"
                         totalTitle="Active Jobs"
@@ -264,14 +258,14 @@ const AdminDashboard = () => {
                         data={workOrderData}
                     />
                 </div>
-                <div className="col-md-4">
+                <div className="col-12 col-md-12 col-lg-4">
                     <div className="card border shadow-sm p-3 bg-white h-100">
                         <h6 className="text-muted small fw-bold text-uppercase mb-3">Top Products</h6>
                         {dashboardData?.topProducts?.map((product, i) => (
                             <div key={i} className="mb-3">
                                 <div className="d-flex justify-content-between x-small fw-bold mb-1">
-                                    <span>{product.name}</span>
-                                    <span>{product.sales} sold</span>
+                                    <span className="text-truncate me-2">{product.name}</span>
+                                    <span className="flex-shrink-0">{product.sales} sold</span>
                                 </div>
                                 <div className="progress" style={{ height: '8px' }}>
                                     <div
@@ -285,14 +279,12 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-
             {/* Schedule Section */}
-           <div className="row g-3 mb-4">
+            <div className="row g-3 mb-4">
                 <div className="col-12">
                     <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: '12px' }}>
-                        <div className="card-body p-4">
-                            {/* Header Section */}
-                            <div className="d-flex justify-content-between align-items-center mb-4">
+                        <div className="card-body p-2 p-md-4">
+                            <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
                                 <div>
                                     <h6 className="fw-bold text-dark mb-1">
                                         <i className="bi bi-calendar3 text-primary me-2"></i>
@@ -305,8 +297,9 @@ const AdminDashboard = () => {
                                 </span>
                             </div>
 
-                            <div className="table-responsive">
-                                <table className="table align-middle mb-0">
+                            {/* Table Container Updated */}
+                            <div className="table-responsive w-100 style-scroll">
+                                <table className="table align-middle mb-0" style={{ width: '100%', minWidth: '500px' }}>
                                     <thead>
                                         <tr style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                             <th className="border-0 text-muted ps-0">Date & Time</th>
@@ -321,12 +314,12 @@ const AdminDashboard = () => {
                                             <tr key={i} className="border-bottom-0">
                                                 <td className="ps-0 py-3">
                                                     <div className="d-flex align-items-center">
-                                                        <div className={`rounded-3 text-center me-3 d-flex flex-column justify-content-center ${app.is_today ? 'bg-primary text-white' : 'bg-light text-muted'}`} 
-                                                             style={{ width: '45px', height: '45px' }}>
-                                                            <span className="fw-bold small mb-0" style={{ fontSize: '10px' }}>
+                                                        <div className={`rounded-3 text-center me-2 d-flex flex-column justify-content-center flex-shrink-0 ${app.is_today ? 'bg-primary text-white' : 'bg-light text-muted'}`} 
+                                                             style={{ width: '38px', height: '38px' }}>
+                                                            <span className="fw-bold small mb-0" style={{ fontSize: '9px' }}>
                                                                 {app.is_today ? 'TOD' : app.date.split(' ')[1] || '---'}
                                                             </span>
-                                                            <span className="fw-bold" style={{ fontSize: '14px', marginTop: '-4px' }}>
+                                                            <span className="fw-bold" style={{ fontSize: '12px', marginTop: '-3px' }}>
                                                                 {app.is_today ? '★' : app.date.split(' ')[0]}
                                                             </span>
                                                         </div>
@@ -341,42 +334,43 @@ const AdminDashboard = () => {
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div className="d-flex flex-column">
-                                                        <span className="small fw-bold text-dark">{app.client}</span>
-                                                        <span className="text-muted truncate-text" style={{ fontSize: '11px', maxWidth: '180px' }}>
+                                                    <div className="d-flex flex-column" style={{ maxWidth: '140px' }}>
+                                                        <span className="small fw-bold text-dark text-truncate">{app.client}</span>
+                                                        <span className="text-muted text-truncate" style={{ fontSize: '11px' }}>
                                                             {app.title}
                                                         </span>
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div className="d-flex align-items-center">
-                                                        <div className="avatar-xs me-2 d-flex align-items-center justify-content-center rounded-circle bg-soft-info text-info fw-bold" 
-                                                             style={{ width: '28px', height: '28px', fontSize: '10px', backgroundColor: '#e0f7fa' }}>
+                                                        <div className="avatar-xs me-2 d-flex align-items-center justify-content-center rounded-circle bg-soft-info text-info fw-bold flex-shrink-0" 
+                                                             style={{ width: '26px', height: '26px', fontSize: '10px', backgroundColor: '#e0f7fa' }}>
                                                             {app.glazier ? app.glazier.split(' ').map(n => n[0]).join('') : 'UN'}
                                                         </div>
-                                                        <span className="small text-dark fw-medium">{app.glazier || 'Not Assigned'}</span>
+                                                        <span className="small text-dark fw-medium text-truncate" style={{ maxWidth: '100px' }}>
+                                                            {app.glazier || 'Not Assigned'}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <span className={`badge rounded-pill ${app.type === 'site_visit' ? 'bg-info-light text-info' : 'bg-primary-light text-primary'}`} 
-                                                          style={{ padding: '5px 12px', fontSize: '10px', fontWeight: '600', letterSpacing: '0.3px', 
+                                                          style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '600', letterSpacing: '0.3px', 
                                                                    backgroundColor: app.type === 'site_visit' ? '#e1f5fe' : '#e8eaf6' }}>
                                                         <i className={`bi ${app.type === 'site_visit' ? 'bi-geo-alt' : 'bi-tools'} me-1`}></i>
-                                                        {app.type === 'site_visit' ? 'SITE VISIT' : 'INSTALL'}
+                                                        {app.type === 'site_visit' ? 'SITE' : 'INSTALL'}
                                                     </span>
                                                 </td>
                                                 <td className="text-end pe-0">
-                                                    <span className={`fw-bold ${app.status === 'pending' ? 'text-warning' : 'text-success'}`} style={{ fontSize: '11px' }}>
-                                                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '8px' }}></i>
+                                                    <span className={`fw-bold ${app.status === 'pending' ? 'text-warning' : 'text-success'}`} style={{ fontSize: '10px' }}>
+                                                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '7px' }}></i>
                                                         {app.status.toUpperCase()}
                                                     </span>
                                                 </td>
                                             </tr>
                                         )) : (
                                             <tr>
-                                                <td colSpan="5" className="text-center py-5">
-                                                    <img src="/assets/images/empty-calendar.svg" alt="" style={{ width: '50px', opacity: '0.5' }} className="mb-2" />
-                                                    <p className="text-muted small">No upcoming tasks for the next 7 days.</p>
+                                                <td colSpan="5" className="text-center py-4">
+                                                    <p className="text-muted small mb-0">No upcoming tasks for the next 7 days.</p>
                                                 </td>
                                             </tr>
                                         )}
@@ -391,14 +385,14 @@ const AdminDashboard = () => {
             {/* Bottom Section */}
             <div className="row g-3">
                 {/* Recent Invoices */}
-                <div className="col-lg-7">
+                <div className="col-12 col-lg-7">
                     <div className="card border shadow-sm bg-white h-100">
                         <div className="card-body p-3">
                             <div className="d-flex justify-content-between align-items-center mb-3">
                                 <h6 className="text-muted small fw-bold text-uppercase mb-0">Recent Invoices (DUE)</h6>
                             </div>
-                            <div className="d-flex align-items-center mb-3">
-                                <div style={{ width: '60%', height: '180px' }}>
+                            <div className="row align-items-center mb-3 g-2">
+                                <div className="col-8 col-sm-7" style={{ height: '150px' }}>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={dashboardData?.chartData}>
                                             <defs>
@@ -415,19 +409,19 @@ const AdminDashboard = () => {
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="ms-3 flex-grow-1">
-                                    <h3 className="fw-bold mb-0">{recentInvoices.length}</h3>
+                                <div className="col-4 col-sm-5 ps-2">
+                                    <h3 className="fw-bold mb-0 fs-3">{recentInvoices.length}</h3>
                                     <p className="text-muted x-small mb-0">Unpaid Invoices</p>
                                 </div>
                             </div>
 
                             {recentInvoices.map((inv, i) => (
                                 <div key={i} className="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                                    <span className="x-small text-muted">
+                                    <span className="x-small text-muted text-truncate me-2" style={{ maxWidth: '180px' }}>
                                         <i className="bi bi-receipt me-2" style={{color: QB_COLORS.blue}}></i>
                                         {inv.lead?.client_name || 'Unknown Client'} ({inv.invoice_number})
                                     </span>
-                                    <div className="text-end">
+                                    <div className="text-end flex-shrink-0">
                                         <span className="x-small fw-bold d-block">${inv.total_amount || '0.00'}</span>
                                         <span className="x-small text-warning" style={{fontSize: '9px'}}>{inv.status}</span>
                                     </div>
@@ -439,7 +433,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Purchase Orders */}
-                <div className="col-lg-5">
+                <div className="col-12 col-lg-5">
                     <div className="card border shadow-sm bg-white h-100">
                         <div className="card-body p-3">
                             <div className="d-flex justify-content-between align-items-center mb-3">
@@ -447,18 +441,16 @@ const AdminDashboard = () => {
                             </div>
                             
                             {/* Mini Trend Chart */}
-                            <div className="d-flex align-items-center mb-3">
-                                <div style={{ width: '100%', height: '100px' }}> {/* Height thori kam ki hai list space ke liye */}
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={dashboardData?.chartData}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                                            <XAxis dataKey="month" hide />
-                                            <YAxis hide />
-                                            <Tooltip />
-                                            <Line type="monotone" dataKey="po" stroke="#ed6a10" strokeWidth={2} dot={false} />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
+                            <div className="mb-3" style={{ width: '100%', height: '100px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={dashboardData?.chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                        <XAxis dataKey="month" hide />
+                                        <YAxis hide />
+                                        <Tooltip />
+                                        <Line type="monotone" dataKey="po" stroke="#ed6a10" strokeWidth={2} dot={false} />
+                                    </LineChart>
+                                </ResponsiveContainer>
                             </div>
 
                             {/* PO List */}
@@ -466,15 +458,15 @@ const AdminDashboard = () => {
                                 {dashboardData?.latestPO?.length > 0 ? (
                                     dashboardData.latestPO.map((po, i) => (
                                         <div key={i} className="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
-                                            <div className="d-flex flex-column">
-                                                <span className="small fw-bold text-dark">
+                                            <div className="d-flex flex-column text-truncate me-2">
+                                                <span className="small fw-bold text-dark text-truncate">
                                                     {po.supplier?.name || 'Unknown Supplier'}
                                                 </span>
                                                 <span className="text-muted" style={{ fontSize: '10px' }}>
                                                     #{po.po_number}
                                                 </span>
                                             </div>
-                                            <div className="text-end">
+                                            <div className="text-end flex-shrink-0">
                                                 <span className="small fw-bold d-block">${po.total}</span>
                                                 <span className={`badge ${po.payment_status === 'PENDING' ? 'bg-light-warning text-warning' : 'text-danger'}`} 
                                                       style={{ fontSize: '9px', padding: '2px 5px' }}>

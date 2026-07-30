@@ -101,12 +101,12 @@ const AdminPurchaseOrder = () => {
             confirmButtonText: 'Update Status',
             cancelButtonText: 'Cancel',
             customClass: {
-                popup: 'border-0 shadow-lg rounded-4',
+                popup: 'border-0 shadow-lg rounded-4 responsive-swal-popup',
                 title: 'fw-bold fs-5 pt-4',
-                input: 'form-select small shadow-none mx-auto w-75',
+                input: 'form-select small shadow-none mx-auto w-100 w-sm-75',
                 confirmButton: 'btn px-4 fw-bold text-white',
                 cancelButton: 'btn btn-outline-secondary px-4 fw-bold',
-                actions: 'pb-4 pt-2 d-flex justify-content-center gap-3'
+                actions: 'pb-4 pt-2 d-flex justify-content-center gap-2 gap-sm-3'
             },
             didOpen: () => {
                 const confirmBtn = Swal.getConfirmButton();
@@ -135,7 +135,7 @@ const AdminPurchaseOrder = () => {
         const { value: formValues } = await Swal.fire({
             title: 'Add Payment',
             html: `
-                <div class="text-start px-3">
+                <div class="text-start px-2 px-sm-3">
                     <label class="small fw-bold text-muted mb-1">REMAINING BALANCE: $${remainingBalance.toLocaleString()}</label>
                     <input id="swal-amount" type="number" class="form-control mb-3 shadow-none" placeholder="Enter amount" value="${remainingBalance}">
                     <label class="small fw-bold text-muted mb-1">PAYMENT METHOD</label>
@@ -150,10 +150,10 @@ const AdminPurchaseOrder = () => {
             reverseButtons: true,
             confirmButtonText: 'Record Payment',
             customClass: {
-                popup: 'border-0 shadow-lg rounded-4',
+                popup: 'border-0 shadow-lg rounded-4 responsive-swal-popup',
                 confirmButton: 'btn px-4 fw-bold text-white',
                 cancelButton: 'btn btn-light px-4 fw-bold',
-                actions: 'pb-4 pt-2 d-flex justify-content-center gap-3'
+                actions: 'pb-4 pt-2 d-flex justify-content-center gap-2 gap-sm-3'
             },
             didOpen: () => {
                 const confirmBtn = Swal.getConfirmButton();
@@ -197,6 +197,7 @@ const AdminPurchaseOrder = () => {
             showCancelButton: true,
             confirmButtonText: 'Yes, delete it!',
             customClass: {
+                popup: 'responsive-swal-popup border-0 rounded-4',
                 confirmButton: 'btn btn-danger px-4 py-2 shadow-none',
                 cancelButton: 'btn btn-light px-4 py-2 ms-2 shadow-none'
             },
@@ -219,31 +220,31 @@ const AdminPurchaseOrder = () => {
         <>
             {[...Array(5)].map((_, i) => (
                 <tr key={i} className="skeleton-row">
-                    <td className="ps-4"><div className="skeleton-box" style={{ width: '120px', height: '18px', borderRadius: '4px' }}></div></td>
+                    <td className="ps-3 ps-md-4"><div className="skeleton-box" style={{ width: '120px', height: '18px', borderRadius: '4px' }}></div></td>
                     <td><div className="skeleton-box" style={{ width: '80px', height: '18px' }}></div></td>
                     <td><div className="skeleton-box" style={{ width: '100px', height: '18px' }}></div></td>
                     <td><div className="skeleton-box" style={{ width: '70px', height: '18px' }}></div></td>
                     <td className="text-center"><div className="skeleton-box mx-auto" style={{ width: '80px', height: '22px', borderRadius: '12px' }}></div></td>
-                    <td className="text-center"><div className="skeleton-box mx-auto" style={{ width: '30px', height: '24px' }}></div></td>
+                    <td className="text-center pe-3 pe-md-4"><div className="skeleton-box mx-auto" style={{ width: '30px', height: '24px' }}></div></td>
                 </tr>
             ))}
         </>
     );
 
     return (
-        <div className="p-4 animate__animated animate__fadeIn">
+        <div className="p-2 p-sm-3 p-md-4 animate__animated animate__fadeIn">
             {/* Header Section */}
-            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
                 <div>
-                    <h4 className="fw-bold mb-1">PO Management</h4>
+                    <h4 className="fw-bold mb-1 fs-5 fs-md-4">PO Management</h4>
                     <p className="text-muted small mb-0">Global procurement and supplier cost tracking.</p>
                 </div>
 
-                <div className="d-flex gap-2 align-items-center">
-                    <div style={{ minWidth: '250px' }}>
+                <div className="w-100 w-md-auto">
+                    <div className="w-100" style={{ minWidth: '100%', maxWidth: '300px' }}>
                         <input 
                             type="text" 
-                            className="form-control shadow-none border-0 bg-light" 
+                            className="form-control shadow-none border-0 bg-light w-100" 
                             placeholder="Search Supplier or PO#..." 
                             value={searchTerm}
                             onChange={handleSearchChange}
@@ -254,17 +255,17 @@ const AdminPurchaseOrder = () => {
             </div>
 
             {/* Table Container */}
-            <div className="card border-0 shadow-sm" style={{ borderRadius: '15px' }}>
+            <div className="card border-0 shadow-sm overflow-hidden" style={{ borderRadius: '15px' }}>
                 <div className="table-responsive">
-                    <table className="table table-hover align-middle mb-0">
+                    <table className="table table-hover align-middle mb-0" style={{ minWidth: '750px' }}>
                         <thead className="bg-light border-bottom">
                             <tr style={{ fontSize: '0.85rem' }}>
-                                <th className="ps-4 border-0 text-muted fw-semibold py-3">Supplier</th>
+                                <th className="ps-3 ps-md-4 border-0 text-muted fw-semibold py-3">Supplier</th>
                                 <th className="border-0 text-muted fw-semibold py-3">PO Number</th>
                                 <th className="border-0 text-muted fw-semibold py-3">Reference</th>
                                 <th className="border-0 text-muted fw-semibold py-3">Value</th>
                                 <th className="border-0 text-muted fw-semibold py-3 text-center">Status</th>
-                                <th className="border-0 text-muted fw-semibold py-3 text-center">Actions</th>
+                                <th className="border-0 text-muted fw-semibold py-3 text-center pe-3 pe-md-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody style={{ fontSize: '0.85rem' }}>
@@ -275,9 +276,9 @@ const AdminPurchaseOrder = () => {
                             ) : (
                                 purchaseOrders.map((po) => (
                                     <tr key={po.id}>
-                                        <td className="ps-4 py-3">
-                                            <div className="fw-bold text-dark">{po.supplier?.name}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.75rem' }}>{po.supplier?.email}</div>
+                                        <td className="ps-3 ps-md-4 py-3">
+                                            <div className="fw-bold text-dark text-truncate" style={{ maxWidth: '180px' }}>{po.supplier?.name}</div>
+                                            <div className="text-muted text-truncate" style={{ fontSize: '0.75rem', maxWidth: '180px' }}>{po.supplier?.email}</div>
                                         </td>
                                         <td><span className="badge bg-light text-primary border">{po.po_number}</span></td>
                                         <td>
@@ -296,9 +297,9 @@ const AdminPurchaseOrder = () => {
                                                 {po.status}
                                             </span>
                                         </td>
-                                        <td className="text-center">
+                                        <td className="text-center pe-3 pe-md-4">
                                             <div className="dropdown">
-                                                <button className="btn btn-link btn-sm text-muted shadow-none" type="button" data-bs-toggle="dropdown">
+                                                <button className="btn btn-link btn-sm text-muted shadow-none" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                     <i className="bi bi-three-dots-vertical fs-5"></i>
                                                 </button>
                                                 <ul className="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
@@ -343,6 +344,14 @@ const AdminPurchaseOrder = () => {
                     invoiceData={selectedPO}
                 />
             )}
+
+            <style>{`
+                @media (max-width: 576px) {
+                    .responsive-swal-popup {
+                        width: 90% !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 };

@@ -12,6 +12,7 @@ const AdminLayout = () => {
 
     const [showNotifications, setShowNotifications] = useState(false);
     const [notifications, setNotifications] = useState([]);
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false); // Mobile sidebar state
 
     // 1. Fetch Notifications from API
     const fetchNotifications = async () => {
@@ -23,7 +24,7 @@ const AdminLayout = () => {
         }
     };
 
-    // 2. Initial load and Polling (for auto-show new notifications)
+    // 2. Initial load and Polling
     useEffect(() => {
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 30000); // Check every 30 seconds
@@ -74,7 +75,6 @@ const AdminLayout = () => {
         { label: 'DASHBOARD', icon: 'grid', path: '/admin/dashboard' },
         { label: 'LEADS & QUOTES', icon: 'file-earmark-text', path: '/admin/leads' },
         { label: 'WORK ORDERS', icon: 'briefcase', path: '/admin/work-order' },
-        // { label: 'APPOINTMENTS', icon: 'calendar-check', path: '/admin/appointments' }, 
         { label: 'CALENDAR', icon: 'calendar3', path: '/admin/calendar' },
         { label: 'MESSAGE', icon: 'chat-dots', path: '/admin/messages' },
         { label: 'PURCHASE ORDER', icon: 'cart-check', path: '/admin/purchase-order' },
@@ -85,39 +85,68 @@ const AdminLayout = () => {
 
     const currentNavItem = navItems.find(item => item.path === location.pathname);
     const pageTitle = currentNavItem ? currentNavItem.label : 'DASHBOARD';
-
     const unreadCount = notifications.filter(n => !n.read).length;
 
+    // Dropdowns aur mobile sidebar close karne ki handling
     useEffect(() => {
         const closeDropdown = () => setShowNotifications(false);
         if (showNotifications) window.addEventListener('click', closeDropdown);
         return () => window.removeEventListener('click', closeDropdown);
     }, [showNotifications]);
 
+    // Route change hone par mobile sidebar auto-close karna
+    useEffect(() => {
+        setIsMobileSidebarOpen(false);
+    }, [location.pathname]);
+
     return (
         <div className="d-flex" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-            {/* Sidebar */}
-            <nav className="bg-white shadow-sm d-flex flex-column" style={{ width: '260px', minHeight: '100vh', position: 'fixed', zIndex: 1000 }}>
-                <div className="p-3 border-bottom">
+            
+            {/* --- MOBILE OVERLAY BACKDROP --- */}
+            {isMobileSidebarOpen && (
+                <div 
+                    className="mobile-backdrop d-md-none"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                />
+            )}
+
+            {/* --- SIDEBAR (Desktop Fixed + Mobile Offcanvas) --- */}
+            <nav className={`admin-sidebar bg-white shadow-sm d-flex flex-column ${isMobileSidebarOpen ? 'mobile-open' : ''}`}>
+                <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
                     <h5 className="fw-bold mb-0" style={{ color: '#34497e' }}>The Glass People</h5>
+                    {/* Mobile Close Button */}
+                    <button 
+                        className="btn btn-sm d-md-none text-muted p-0" 
+                        onClick={() => setIsMobileSidebarOpen(false)}
+                    >
+                        <i className="bi bi-x-lg fs-5"></i>
+                    </button>
                 </div>
+
                 <div className="flex-grow-1 px-3 mt-3 overflow-auto">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         return (
-                            <Link key={item.path} to={item.path} className={`nav-link mb-2 d-flex align-items-center rounded ${isActive ? 'active' : ''}`}
+                            <Link 
+                                key={item.path} 
+                                to={item.path} 
+                                className={`nav-link mb-2 d-flex align-items-center rounded ${isActive ? 'active' : ''}`}
                                 style={{
-                                    padding: '12px 15px', fontSize: '0.8rem', fontWeight: '600',
+                                    padding: '12px 15px', 
+                                    fontSize: '0.8rem', 
+                                    fontWeight: '600',
                                     color: isActive ? '#fff' : '#6c757d',
                                     backgroundColor: isActive ? '#34497e' : 'transparent',
                                     transition: '0.3s'
-                                }}>
-                                <i className={`bi bi-${item.icon} me-3`}></i>
+                                }}
+                            >
+                                <i className={`bi bi-${item.icon} me-3 fs-6`}></i>
                                 {item.label}
                             </Link>
                         );
                     })}
                 </div>
+
                 <div className="p-3 border-top mt-auto bg-light-subtle">
                     <Link to="/admin/profile" className="d-flex align-items-center mb-3 px-2 text-decoration-none" style={{ color: 'inherit' }}>
                         <div className="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold me-2" style={{ width: '35px', height: '35px', fontSize: '0.8rem' }}>
@@ -133,26 +162,39 @@ const AdminLayout = () => {
                 </div>
             </nav>
 
-            <main style={{ marginLeft: '260px', width: 'calc(100% - 260px)' }}>
-                <header className="d-flex justify-content-between align-items-center border-bottom shadow-sm bg-white" style={{ padding: '5px 15px' }}>
-                    <h5 className="fw-bold mb-0 text-dark">{pageTitle}</h5>
+            {/* --- MAIN CONTENT AREA --- */}
+            <main className="admin-main-wrapper flex-grow-1">
+                <header className="d-flex justify-content-between align-items-center border-bottom shadow-sm bg-white" style={{ padding: '10px 15px', position: 'sticky', top: 0, zIndex: 999 }}>
+                    
+                    <div className="d-flex align-items-center gap-2">
+                        {/* Mobile Sidebar Toggle Button */}
+                        <button 
+                            className="btn btn-light d-md-none border-0 p-1 px-2" 
+                            onClick={() => setIsMobileSidebarOpen(true)}
+                        >
+                            <i className="bi bi-list fs-3 text-dark"></i>
+                        </button>
+                        <h5 className="fw-bold mb-0 text-dark">{pageTitle}</h5>
+                    </div>
+
                     <div className="d-flex align-items-center gap-3">
                         <div className="position-relative" onClick={(e) => e.stopPropagation()}>
-                            <div className="bg-light rounded-circle cursor-pointer position-relative" style={{ cursor: 'pointer', transition: '0.3s', padding: '8px 13px' }} onClick={() => setShowNotifications(!showNotifications)}>
+                            <div className="bg-light rounded-circle cursor-pointer position-relative d-flex align-items-center justify-content-center" style={{ cursor: 'pointer', transition: '0.3s', width: '38px', height: '38px' }} onClick={() => setShowNotifications(!showNotifications)}>
                                 <i className="bi bi-bell fs-5 text-muted"></i>
                                 {unreadCount > 0 && (
-                                    <span className="position-absolute translate-middle badge rounded-pill bg-danger border border-light" style={{ top: '5px', right: '-10px', fontSize: '0.65rem' }}>
+                                    <span className="position-absolute translate-middle badge rounded-pill bg-danger border border-light" style={{ top: '5px', right: '-8px', fontSize: '0.65rem' }}>
                                         {unreadCount}
                                     </span>
                                 )}
                             </div>
 
+                            {/* Notification Dropdown Container */}
                             {showNotifications && (
-                                <div className="position-absolute end-0 mt-2 shadow-lg border rounded bg-white overflow-hidden" style={{ width: '320px', zIndex: 1100, top: '100%' }}>
+                                <div className="position-absolute end-0 mt-2 shadow-lg border rounded bg-white overflow-hidden notification-dropdown" style={{ width: '300px', zIndex: 1100, top: '100%' }}>
                                     <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
                                         <h6 className="mb-0 fw-bold">Notifications</h6>
                                         {unreadCount > 0 && (
-                                            <span className="text-primary small fw-semibold cursor-pointer" onClick={markAllRead}>Mark all as read</span>
+                                            <span className="text-primary small fw-semibold cursor-pointer" style={{ cursor: 'pointer' }} onClick={markAllRead}>Mark all as read</span>
                                         )}
                                     </div>
 
@@ -164,7 +206,7 @@ const AdminLayout = () => {
                                                     className={`p-3 border-bottom d-flex gap-3 transition-all ${!n.read ? 'bg-light' : ''}`}
                                                     style={{ transition: '0.2s', cursor: 'pointer' }}
                                                 >
-                                                    <div className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${!n.read ? 'bg-primary text-white' : 'bg-grey text-muted'}`} style={{ width: '40px', height: '40px' }}>
+                                                    <div className={`rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${!n.read ? 'bg-primary text-white' : 'bg-grey text-muted'}`} style={{ width: '36px', height: '36px' }}>
                                                         <i className={`bi bi-${n.type === 'appointment' ? 'calendar-event' : 'file-earmark-plus'}`}></i>
                                                     </div>
                                                     <div className="flex-grow-1">
@@ -172,7 +214,7 @@ const AdminLayout = () => {
                                                             <p className={`mb-0 small ${!n.read ? 'fw-bold text-dark' : 'text-muted'}`}>{n.title}</p>
                                                             <span className="text-muted" style={{ fontSize: '0.7rem' }}>{n.time}</span>
                                                         </div>
-                                                        <p className="mb-0 text-muted small" style={{ maxWidth: '200px', fontSize: '0.75rem' }}>{n.msg}</p>
+                                                        <p className="mb-0 text-muted small" style={{ maxWidth: '180px', fontSize: '0.75rem' }}>{n.msg}</p>
                                                     </div>
                                                     {!n.read && <div className="bg-primary rounded-circle mt-2" style={{ width: '8px', height: '8px' }}></div>}
                                                 </div>
@@ -189,10 +231,61 @@ const AdminLayout = () => {
                         </div>
                     </div>
                 </header>
-                <div className="p-4">
+
+                <div className="p-3 p-md-4">
                     <Outlet />
                 </div>
             </main>
+
+            {/* --- RESPONSIVE CSS STYLES --- */}
+            <style>{`
+                .admin-sidebar {
+                    width: 260px;
+                    min-height: 100vh;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    z-index: 1040;
+                    transition: transform 0.3s ease-in-out;
+                }
+
+                .admin-main-wrapper {
+                    margin-left: 260px;
+                    width: calc(100% - 260px);
+                    transition: all 0.3s ease-in-out;
+                }
+
+                .mobile-backdrop {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: rgba(0, 0, 0, 0.4);
+                    z-index: 1030;
+                }
+
+                /* Mobile View Tweaks */
+                @media (max-width: 767.98px) {
+                    .admin-sidebar {
+                        transform: translateX(-100%);
+                    }
+
+                    .admin-sidebar.mobile-open {
+                        transform: translateX(0);
+                    }
+
+                    .admin-main-wrapper {
+                        margin-left: 0;
+                        width: 100%;
+                    }
+
+                    .notification-dropdown {
+                        right: -10px !important;
+                        width: 290px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 };

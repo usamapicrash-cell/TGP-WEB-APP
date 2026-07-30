@@ -106,80 +106,119 @@ const Messages = () => {
     }, [messages]);
 
     const filteredConversations = conversations.filter(job => 
-        job.lead.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.lead.lead_number.includes(searchTerm)
+        job.lead?.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        job.lead?.lead_number?.includes(searchTerm)
     );
 
     if (loading) return <div className="text-center p-5"><div className="spinner-border text-primary"></div></div>;
 
     return (
-        <div className="container-fluid py-4" style={{ height: '90vh' }}>
-            <div className="row no-gutters shadow-lg rounded border bg-white h-100 overflow-hidden">
+        <div className="container-fluid py-2 py-md-3" style={{ height: 'calc(100vh - 80px)', minHeight: '500px' }}>
+            <div className="row g-0 shadow-lg rounded-3 border bg-white h-100 overflow-hidden">
                 
                 {/* --- LEFT SIDEBAR --- */}
-                <div className="col-lg-4 col-md-5 border-right d-flex flex-column h-100 bg-light">
-                    <div className="p-3 border-bottom">
-                        <h5 className="mb-3 font-weight-bold text-primary">Chat Messages</h5>
-                        <input type="text" className="form-control bg-light border-0 shadow-none" placeholder="Search customer..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <div className={`col-12 col-md-5 col-lg-4 border-end d-flex flex-column h-100 bg-light ${selectedJob ? 'd-none d-md-flex' : 'd-flex'}`}>
+                    <div className="p-3 border-bottom bg-white">
+                        <h5 className="mb-2 fw-bold text-primary">Chat Messages</h5>
+                        <input 
+                            type="text" 
+                            className="form-control bg-light border shadow-none rounded-pill px-3 fs-6" 
+                            placeholder="Search customer..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                        />
                     </div>
                     <div className="flex-grow-1 overflow-auto">
-                        {filteredConversations.map((job) => (
-                            <div key={job.id} onClick={() => selectConversation(job)}
-                                className={`p-3 border-bottom cursor-pointer ${selectedJob?.id === job.id ? 'bg-white' : ''}`}
-                                style={{ borderLeft: selectedJob?.id === job.id ? '4px solid #34497e' : '4px solid transparent' }}>
-                                <div className="d-flex align-items-center">
-                                    <div className="avatar-main me-3">{job.lead.customer_name.charAt(0)}</div>
-                                    <div className="w-100 overflow-hidden">
-                                        <div className="d-flex justify-content-between">
-                                            <h6 className="mb-0 font-weight-bold text-truncate">{job.lead.customer_name}</h6>
-                                            <small className="text-muted" style={{fontSize: '10px'}}>{job.lead.lead_number}</small>
+                        {filteredConversations.length === 0 ? (
+                            <div className="text-center p-4 text-muted">No conversations found.</div>
+                        ) : (
+                            filteredConversations.map((job) => (
+                                <div key={job.id} onClick={() => selectConversation(job)}
+                                    className={`p-3 border-bottom cursor-pointer ${selectedJob?.id === job.id ? 'bg-white' : ''}`}
+                                    style={{ borderLeft: selectedJob?.id === job.id ? '4px solid #34497e' : '4px solid transparent', cursor: 'pointer' }}>
+                                    <div className="d-flex align-items-center">
+                                        <div className="avatar-main me-3 flex-shrink-0">
+                                            {job.lead?.customer_name ? job.lead.customer_name.charAt(0).toUpperCase() : 'C'}
                                         </div>
-                                        <small className="text-muted text-truncate d-block">{job.last_msg || "No messages yet"}</small>
+                                        <div className="w-100 overflow-hidden">
+                                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                                <h6 className="mb-0 fw-bold text-truncate me-2" style={{ fontSize: '0.95rem' }}>
+                                                    {job.lead?.customer_name || 'Customer'}
+                                                </h6>
+                                                <small className="text-muted flex-shrink-0" style={{ fontSize: '11px' }}>
+                                                    {job.lead?.lead_number}
+                                                </small>
+                                            </div>
+                                            <small className="text-muted text-truncate d-block" style={{ fontSize: '0.8rem' }}>
+                                                {job.last_msg || "No messages yet"}
+                                            </small>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 
                 {/* --- RIGHT CHAT AREA --- */}
-                <div className="col-lg-8 col-md-7 d-flex flex-column h-100 bg-white">
+                <div className={`col-12 col-md-7 col-lg-8 d-flex flex-column h-100 bg-white ${!selectedJob ? 'd-none d-md-flex' : 'd-flex'}`}>
                     {selectedJob ? (
                         <>
-                            {/* Header */}
-                            <div className="p-3 border-bottom d-flex align-items-center justify-content-between bg-white shadow-sm">
-                                <div className="d-flex align-items-center">
-                                    <div className="avatar-sm bg-primary text-white me-3 shadow-sm">{selectedJob.lead.customer_name.charAt(0)}</div>
-                                    <div>
-                                        <h6 className="mb-0 fw-bold">{selectedJob.lead.customer_name}</h6>
-                                        <small className="text-muted">Lead: {selectedJob.lead.lead_number}</small>
+                            {/* Chat Header */}
+                            <div className="p-2 p-sm-3 border-bottom d-flex align-items-center justify-content-between bg-white shadow-sm">
+                                <div className="d-flex align-items-center me-2 overflow-hidden">
+                                    {/* Mobile Back Button */}
+                                    <button 
+                                        className="btn btn-sm btn-light border-0 me-2 d-md-none rounded-circle" 
+                                        onClick={() => setSelectedJob(null)}
+                                    >
+                                        <i className="bi bi-arrow-left fs-5"></i>
+                                    </button>
+                                    
+                                    <div className="avatar-sm bg-primary text-white me-2 me-sm-3 shadow-sm flex-shrink-0">
+                                        {selectedJob.lead?.customer_name?.charAt(0).toUpperCase() || 'C'}
+                                    </div>
+                                    <div className="text-truncate">
+                                        <h6 className="mb-0 fw-bold text-truncate">{selectedJob.lead?.customer_name}</h6>
+                                        <small className="text-muted d-block text-truncate" style={{ fontSize: '11px' }}>
+                                            Lead: {selectedJob.lead?.lead_number}
+                                        </small>
                                     </div>
                                 </div>
-                                <div className="d-flex gap-2">
-                                    <div>
-                                    <small className="text-muted d-block" style={{ fontSize: '11px', lineHeight: '1' }}>Chatting with</small>
-                                    <span className="fw-bold text-primary">
-                                        {selectedJob.display_name || 'Admin'} 
-                                    </span>
+                                
+                                <div className="d-flex align-items-center gap-1 gap-sm-2 flex-shrink-0">
+                                    <div className="d-none d-sm-block text-end me-1">
+                                        <small className="text-muted d-block" style={{ fontSize: '10px', lineHeight: '1' }}>Chatting with</small>
+                                        <span className="fw-bold text-primary" style={{ fontSize: '0.85rem' }}>
+                                            {selectedJob.display_name || 'Admin'} 
+                                        </span>
                                     </div>
-                                    <button className="btn btn-light btn-sm rounded-circle" onClick={() => fileInputRef.current.click()}><i className="bi bi-paperclip text-primary"></i></button>
-                                    <button className="btn btn-light btn-sm rounded-circle" onClick={() => setShowSketchModal(true)}><i className="bi bi-palette text-success"></i></button>
+                                    <button className="btn btn-light btn-sm rounded-circle p-2" onClick={() => fileInputRef.current.click()} title="Attach File">
+                                        <i className="bi bi-paperclip text-primary fs-6"></i>
+                                    </button>
+                                    <button className="btn btn-light btn-sm rounded-circle p-2" onClick={() => setShowSketchModal(true)} title="Draw Sketch">
+                                        <i className="bi bi-palette text-success fs-6"></i>
+                                    </button>
                                 </div>
                             </div>
 
                             {/* Chat Viewport */}
-                            <div className="flex-grow-1 p-4 overflow-auto bg-light chat-viewport" style={{ background: '#f8f9fa' }}>
+                            <div className="flex-grow-1 p-3 p-sm-4 overflow-auto bg-light chat-viewport" style={{ background: '#f8f9fa' }}>
                                 <input type="file" ref={fileInputRef} hidden onChange={handleFileUpload} accept="image/*" />
                                 {messages.length > 0 ? messages.map((msg) => {
                                     const isMe = msg.sender_id === currentUserId;
                                     return (
                                         <div key={msg.id} className={`d-flex mb-3 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
-                                            <div className={`p-3 rounded-4 shadow-sm ${isMe ? 'bg-primary text-white' : 'bg-white text-dark border'}`} style={{ maxWidth: '75%' }}>
-                                                <div style={{ fontSize: '0.9rem' }}>{msg.message}</div>
+                                            <div className={`p-3 rounded-4 shadow-sm ${isMe ? 'bg-primary text-white' : 'bg-white text-dark border'}`} style={{ maxWidth: '85%' }}>
+                                                <div style={{ fontSize: '0.9rem', wordBreak: 'break-word' }}>{msg.message}</div>
                                                 {msg.attachment && (
                                                     <div className="mt-2">
-                                                        <img src={msg.attachment.startsWith('http') ? msg.attachment : `${STORAGE_BASE_URL}/${msg.attachment}`} 
-                                                             className="rounded-3 img-fluid border bg-white" alt="attachment" style={{ maxHeight: '200px' }} />
+                                                        <img 
+                                                            src={msg.attachment.startsWith('http') ? msg.attachment : `${STORAGE_BASE_URL}/${msg.attachment}`} 
+                                                            className="rounded-3 img-fluid border bg-white" 
+                                                            alt="attachment" 
+                                                            style={{ maxHeight: '200px', objectFit: 'cover' }} 
+                                                        />
                                                     </div>
                                                 )}
                                                 <div className={`text-end mt-1 ${isMe ? 'text-white-50' : 'text-muted'}`} style={{ fontSize: '0.65rem' }}>
@@ -191,27 +230,39 @@ const Messages = () => {
                                 }) : (
                                     <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50">
                                         <i className="bi bi-chat-dots display-4"></i>
-                                        <p>No messages yet.</p>
+                                        <p className="mt-2">No messages yet.</p>
                                     </div>
                                 )}
                                 <div ref={chatEndRef} />
                             </div>
 
-                            {/* Input Area */}
-                            <div className="p-3 bg-white border-top">
+                            {/* Chat Input Area */}
+                            <div className="p-2 p-sm-3 bg-white border-top">
                                 <form onSubmit={handleSendMessage} className="d-flex align-items-center gap-2">
-                                    <input type="text" className="form-control rounded-pill border-light bg-light px-4" placeholder="Type message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} style={{ height: '45px' }} />
-                                    <button type="submit" disabled={!newMessage.trim()} className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center ${newMessage.trim() ? 'btn-primary shadow' : 'btn-light'}`} style={{ width: '45px', height: '45px', minWidth: '45px' }}>
-                                        <i className="bi bi-send-fill fs-5"></i>
+                                    <input 
+                                        type="text" 
+                                        className="form-control rounded-pill border bg-light px-3 px-sm-4" 
+                                        placeholder="Type message..." 
+                                        value={newMessage} 
+                                        onChange={(e) => setNewMessage(e.target.value)} 
+                                        style={{ height: '42px' }} 
+                                    />
+                                    <button 
+                                        type="submit" 
+                                        disabled={!newMessage.trim()} 
+                                        className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center flex-shrink-0 ${newMessage.trim() ? 'btn-primary shadow-sm' : 'btn-light'}`} 
+                                        style={{ width: '42px', height: '42px' }}
+                                    >
+                                        <i className="bi bi-send-fill fs-6"></i>
                                     </button>
                                 </form>
                             </div>
                         </>
                     ) : (
-                        <div className="h-100 d-flex align-items-center justify-content-center flex-column text-muted bg-light">
+                        <div className="h-100 d-flex align-items-center justify-content-center flex-column text-muted bg-light p-3 text-center">
                             <i className="bi bi-chat-left-dots display-4 opacity-25 mb-3"></i>
-                            <h4 className="fw-bold text-dark">Welcome to Messenger</h4>
-                            <p>Please select a conversation to start chatting.</p>
+                            <h5 className="fw-bold text-dark">Welcome to Messenger</h5>
+                            <p className="small">Please select a conversation from the sidebar to start chatting.</p>
                         </div>
                     )}
                 </div>
@@ -219,26 +270,30 @@ const Messages = () => {
 
             {/* --- SKETCH MODAL --- */}
             <Modal show={showSketchModal} onHide={() => setShowSketchModal(false)} size="lg" centered>
-                <Modal.Header closeButton><Modal.Title className="h6">Draw Sketch</Modal.Title></Modal.Header>
-                <Modal.Body className="bg-light">
-                    <div className="bg-white rounded-3 overflow-hidden border" style={{ height: '400px' }}>
+                <Modal.Header closeButton><Modal.Title className="h6 mb-0">Draw Sketch</Modal.Title></Modal.Header>
+                <Modal.Body className="bg-light p-2 p-sm-3">
+                    <div className="bg-white rounded-3 overflow-hidden border" style={{ height: '350px' }}>
                         <ReactSketchCanvas ref={canvasRef} strokeWidth={strokeWidth} strokeColor={strokeColor} />
                     </div>
-                    <div className="d-flex gap-2 mt-3 justify-content-center align-items-center">
-                        {['#000000', '#dc3545', '#198754', '#0d6efd'].map(c => (
-                            <div key={c} onClick={() => setStrokeColor(c)} style={{ width: '30px', height: '30px', backgroundColor: c, borderRadius: '50%', cursor: 'pointer', border: strokeColor === c ? '3px solid orange' : 'none' }} />
-                        ))}
-                        <input type="range" className="form-range mx-3" style={{width: '100px'}} min="1" max="20" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value))} />
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => canvasRef.current.clearCanvas()}>Clear</button>
+                    <div className="d-flex flex-wrap gap-2 mt-3 justify-content-center align-items-center">
+                        <div className="d-flex gap-2">
+                            {['#000000', '#dc3545', '#198754', '#0d6efd'].map(c => (
+                                <div key={c} onClick={() => setStrokeColor(c)} style={{ width: '28px', height: '28px', backgroundColor: c, borderRadius: '50%', cursor: 'pointer', border: strokeColor === c ? '3px solid orange' : 'none' }} />
+                            ))}
+                        </div>
+                        <input type="range" className="form-range mx-2" style={{ width: '90px' }} min="1" max="20" value={strokeWidth} onChange={(e) => setStrokeWidth(parseInt(e.target.value))} />
+                        <button className="btn btn-sm btn-outline-secondary px-3" onClick={() => canvasRef.current.clearCanvas()}>Clear</button>
                     </div>
                 </Modal.Body>
-                <Modal.Footer><button className="btn btn-primary w-100 rounded-pill" onClick={sendSketch}>Send Sketch</button></Modal.Footer>
+                <Modal.Footer className="p-2 p-sm-3">
+                    <button className="btn btn-primary w-100 rounded-pill" onClick={sendSketch}>Send Sketch</button>
+                </Modal.Footer>
             </Modal>
 
             <style>{`
                 .avatar-main { width: 40px; height: 40px; background: #34497e; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
-                .avatar-sm { width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-                .chat-viewport::-webkit-scrollbar { width: 4px; }
+                .avatar-sm { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+                .chat-viewport::-webkit-scrollbar { width: 5px; }
                 .chat-viewport::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
             `}</style>
         </div>

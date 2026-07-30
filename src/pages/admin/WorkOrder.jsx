@@ -14,7 +14,7 @@ const WorkOrder = () => {
             const response = await api.get('/jobs'); 
             setJobs(response.data);
         } catch (err) {
-            console.error(" Error fetching jobs:", err);
+            console.error("Error fetching jobs:", err);
         } finally {
             setLoading(false);
         }
@@ -41,7 +41,7 @@ const WorkOrder = () => {
 
     // --- Skeleton Loader Component ---
     const CardSkeleton = () => (
-        <div className="card border-0 shadow-sm p-4 mb-3" style={{ borderRadius: '12px' }}>
+        <div className="card border-0 shadow-sm p-3 p-md-4 mb-3" style={{ borderRadius: '12px' }}>
             <div className="d-flex justify-content-between mb-3">
                 <div className="w-50">
                     <div className="skeleton-box mb-2" style={{ width: '70%', height: '20px' }}></div>
@@ -64,14 +64,27 @@ const WorkOrder = () => {
     }
 
     return (
-        <div className="p-3">
+        <div className="p-2 p-md-3">
+            <style>
+                {`
+                    /* Stepper Scrollbar for Mobile */
+                    .stepper-container::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .stepper-container {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+                `}
+            </style>
+
             {/* Header Section */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h4 className="fw-bold mb-0">Work Order</h4>
-                    <p className="text-muted small">Monitor all active jobs and their progress</p>
+                    <p className="text-muted small mb-0">Monitor all active jobs and their progress</p>
                 </div>
-                <button className="btn btn-light border shadow-sm" onClick={fetchJobs} disabled={loading}>
+                <button className="btn btn-light border shadow-sm px-3" onClick={fetchJobs} disabled={loading}>
                     <i className={`bi bi-arrow-clockwise ${loading ? 'spin' : ''}`}></i>
                 </button>
             </div>
@@ -87,11 +100,10 @@ const WorkOrder = () => {
                 ) : jobs.length === 0 ? (
                     <div className="text-center py-5 bg-white rounded-3 shadow-sm">
                         <i className="bi bi-clipboard-x fs-1 text-muted"></i>
-                        <p className="mt-2 text-muted">No active jobs found.</p>
+                        <p className="mt-2 text-muted mb-0">No active jobs found.</p>
                     </div>
                 ) : (
                     jobs.map((job) => {
-                        // Steps configuration for the domino stepper
                         const steps = [
                             { label: 'Pre-Approval', cat: 'Pre-Approval', icon: 'bi-file-earmark-check' },
                             { label: 'Pre-Install', cat: 'Pre-Install', icon: 'bi-box-seam' },
@@ -100,46 +112,50 @@ const WorkOrder = () => {
                         ];
 
                         return (
-                            <div key={job.id} className="card border-0 shadow-sm p-4" style={{ borderRadius: '12px' }}>
-                                <div className="d-flex justify-content-between align-items-start mb-3">
-                                    <div>
-                                        <span className="text-muted small">{job.lead?.lead_number}</span>
-                                        <h5 className="fw-bold mb-1" style={{ fontSize: '1.1rem' }}>
-                                             {job.title || job.lead?.client_name + " - Job"}
+                            <div key={job.id} className="card border-0 shadow-sm p-3 p-md-4" style={{ borderRadius: '12px' }}>
+                                {/* Card Header Info */}
+                                <div className="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2 mb-3">
+                                    <div className="w-100">
+                                        <span className="text-muted small d-block">{job.lead?.lead_number}</span>
+                                        <h5 className="fw-bold mb-1 text-break" style={{ fontSize: '1.1rem' }}>
+                                            {job.title || (job.lead?.client_name ? `${job.lead.client_name} - Job` : 'Job Request')}
                                         </h5>
-                                        <div className="d-flex gap-3 text-muted small">
+                                        <div className="d-flex flex-wrap gap-2 gap-sm-3 text-muted small mt-1">
                                             <span><i className="bi bi-person me-1"></i>{job.lead?.client_name || 'N/A'}</span>
-                                            <span className="text-truncatee" style={{  }}>
+                                            <span className="text-break">
                                                 <i className="bi bi-geo-alt me-1"></i>{job.lead?.job_address || 'No Address'}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="text-end">
-                                        <span className="fw-bold text-primary d-block mb-1">{job.job_number}</span>
-                                        <span className="badge rounded-pill bg-light fw-bold px-3 py-2 text-uppercase" 
+                                    <div className="d-flex flex-row flex-sm-column justify-content-between align-items-center align-items-sm-end w-100 w-sm-auto border-top border-sm-0 pt-2 pt-sm-0 mt-1 mt-sm-0">
+                                        <span className="fw-bold text-primary">{job.job_number}</span>
+                                        <span className="badge rounded-pill bg-light fw-bold px-3 py-2 text-uppercase mt-sm-1" 
                                               style={{ color: 'var(--primary-blue)', fontSize: '0.65rem', border: '1px solid #eee' }}>
                                             {job.work_status || 'Pending'}
                                         </span>
                                     </div>
                                 </div>
 
-                                {/* --- DOMINO STEPPER ADDED HERE --- */}
-                                <div className="domino-stepper mb-4 mt-2">
-                                    {steps.map((step, index) => {
-                                        const status = getStepStatus(job.checklist_data, step.cat);
-                                        return (
-                                            <div key={index} className={`step-item ${status}`}>
-                                                <div className="step-icon">
-                                                    {status === 'completed' ? <i className="bi bi-check-lg"></i> : <i className={`bi ${step.icon}`}></i>}
+                                {/* --- DOMINO STEPPER --- */}
+                                <div className="domino-stepper stepper-container overflow-x-auto mb-4 mt-2 py-1">
+                                    <div className="d-flex align-items-center flex-nowrap" style={{ minWidth: '320px' }}>
+                                        {steps.map((step, index) => {
+                                            const status = getStepStatus(job.checklist_data, step.cat);
+                                            return (
+                                                <div key={index} className={`step-item ${status} flex-fill`}>
+                                                    <div className="step-icon">
+                                                        {status === 'completed' ? <i className="bi bi-check-lg"></i> : <i className={`bi ${step.icon}`}></i>}
+                                                    </div>
+                                                    <div className="step-label">{step.label}</div>
                                                 </div>
-                                                <div className="step-label">{step.label}</div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <div className="w-50">
+                                {/* Progress & Action Controls */}
+                                <div className="d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-3">
+                                    <div className="w-100 w-sm-50">
                                         <div className="d-flex justify-content-between small mb-1">
                                             <span className="text-muted x-small fw-bold">Overall Progress</span>
                                             <span className="fw-bold x-small">{job.progress || 0}%</span>
@@ -155,8 +171,9 @@ const WorkOrder = () => {
                                             ></div>
                                         </div>
                                     </div>
+                                    
                                     <button 
-                                        className="btn btn-primary btn-sm px-4" 
+                                        className="btn btn-primary btn-sm px-4 py-2 py-sm-1 shadow-none" 
                                         style={{ backgroundColor: 'var(--primary-blue)', border: 'none', borderRadius: '8px' }}
                                         onClick={() => setSelectedOrder(job)}
                                     >
