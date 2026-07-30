@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCall } from '../context/CallingContext'; // Apne folder path ke mutabiq verify kar lein
+import { useCall } from '../context/CallingContext'; // Path verify kar lein
 
 const GlobalCallWidget = () => {
     const { callState, showCallWidget, setShowCallWidget, answerCall, endCall, toggleMute } = useCall();
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const timerRef = useRef(null);
 
-    const themeColor = '#1e293b'; // Sleek dark Navy style
+    const themeColor = '#1e293b';
 
-    // Call Duration Timer
+    // Timer for active connected call
     useEffect(() => {
         if (callState.status === 'active') {
             timerRef.current = setInterval(() => {
@@ -40,6 +40,20 @@ const GlobalCallWidget = () => {
         return `${mins}:${secs}`;
     };
 
+    const isActive = callState.status === 'active';
+    const isCalling = callState.status === 'calling';
+    const isRinging = callState.status === 'ringing';
+    const isIncoming = callState.status === 'incoming';
+
+    // Status Label Helper
+    const getStatusBadge = () => {
+        if (isIncoming) return '🔔 Incoming Call';
+        if (isCalling) return '📞 Calling Customer...';
+        if (isRinging) return '🔔 Ringing...';
+        if (isActive) return `🟢 Connected (${formatDuration(elapsedSeconds)})`;
+        return 'Connecting...';
+    };
+
     // --- STAGE 1: Minimized Floating Pill ---
     if (!showCallWidget) {
         return (
@@ -50,7 +64,7 @@ const GlobalCallWidget = () => {
                     bottom: '30px',
                     right: '30px',
                     zIndex: 9999,
-                    backgroundColor: callState.status === 'active' ? '#10b981' : '#3b82f6',
+                    backgroundColor: isActive ? '#10b981' : isIncoming ? '#f59e0b' : '#3b82f6',
                     borderRadius: '50px',
                     padding: '12px 24px',
                     cursor: 'pointer',
@@ -58,13 +72,13 @@ const GlobalCallWidget = () => {
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
             >
-                <i className={`bi ${callState.status === 'active' ? 'bi-telephone-fill' : 'bi-telephone-outbound-fill'} fs-5`}></i>
+                <i className={`bi ${isActive ? 'bi-telephone-fill' : 'bi-telephone-outbound-fill'} fs-5`}></i>
                 <div className="d-flex flex-column align-items-start">
                     <span style={{ fontSize: '0.85rem', fontWeight: '700', lineHeight: '1.1' }}>
                         {callState.clientName || 'Customer'}
                     </span>
                     <small style={{ fontSize: '0.75rem', opacity: 0.9 }}>
-                        {callState.status === 'active' ? formatDuration(elapsedSeconds) : 'Connecting...'}
+                        {getStatusBadge()}
                     </small>
                 </div>
             </div>
@@ -72,10 +86,6 @@ const GlobalCallWidget = () => {
     }
 
     // --- STAGE 2: Expanded Call Interface ---
-    const isActive = callState.status === 'active';
-    const isRinging = callState.status === 'ringing';
-    const isIncoming = callState.status === 'incoming';
-
     return (
         <div
             className="card border-0 shadow-lg position-fixed text-white p-4"
@@ -91,15 +101,13 @@ const GlobalCallWidget = () => {
                 transition: 'all 0.3s ease-in-out'
             }}
         >
-            {/* Header / Minimize Control */}
+            {/* Header */}
             <div className="d-flex justify-content-between align-items-center mb-3">
-                <span className={`badge rounded-pill px-3 py-2 d-flex align-items-center gap-1 ${
+                <span className={`badge rounded-pill px-3 py-2 d-flex align-items-center gap-2 ${
                     isActive ? 'bg-success text-white' : isIncoming ? 'bg-warning text-dark' : 'bg-primary text-white'
                 }`} style={{ fontSize: '0.75rem', fontWeight: '600' }}>
-                    <span className={`spinner-grow spinner-grow-sm ${isActive ? 'd-none' : ''}`} role="status"></span>
-                    {isIncoming && '🔔 Incoming Call'}
-                    {isRinging && '⏳ Calling Customer...'}
-                    {isActive && `🟢 Connected (${formatDuration(elapsedSeconds)})`}
+                    {!isActive && <span className="spinner-grow spinner-grow-sm" role="status"></span>}
+                    {getStatusBadge()}
                 </span>
 
                 <button
@@ -123,32 +131,24 @@ const GlobalCallWidget = () => {
                     }}
                 >
                     <i className="bi bi-person-fill fs-1 text-white"></i>
-                    {isActive && (
-                        <span className="position-absolute top-0 start-100 translate-middle p-2 bg-success border border-light rounded-circle">
-                            <span className="visually-hidden">Connected</span>
-                        </span>
-                    )}
                 </div>
 
-                <h5 className="fw-bold mb-1 text-white text-truncate">{callState.clientName || 'Unknown Customer'}</h5>
+                <h5 className="fw-bold mb-1 text-white text-truncate">{callState.clientName || 'Customer'}</h5>
                 <p className="text-white-50 small mb-0 font-monospace">{callState.phoneNumber || 'Private Number'}</p>
             </div>
 
-            {/* Call Status Subtitle */}
+            {/* Subtitle Message */}
             <div className="text-center mb-4" style={{ height: '20px' }}>
-                {isActive && (
-                    <p className="text-success small fw-semibold mb-0 animate-fade-in">
-                        <i className="bi bi-shield-lock-fill me-1"></i> Call in progress
-                    </p>
-                )}
-                {isRinging && <p className="text-white-50 small mb-0">Ringing on remote end...</p>}
-                {isIncoming && <p className="text-warning small mb-0">Incoming Voice Call</p>}
+                {isActive && <p className="text-success small fw-semibold mb-0">Call in progress</p>}
+                {isCalling && <p className="text-white-50 small mb-0">Initiating connection...</p>}
+                {isRinging && <p className="text-info small mb-0">Ringing on customer's phone...</p>}
+                {isIncoming && <p className="text-warning small mb-0 font-weight-bold">Incoming Voice Call</p>}
             </div>
 
-            {/* Controls Bar */}
+            {/* Call Action Controls */}
             <div className="d-flex justify-content-center gap-3 align-items-center">
 
-                {/* Answer Button (Only Inbound) */}
+                {/* Answer Button (Only for Inbound Calls) */}
                 {isIncoming && (
                     <button
                         className="btn btn-success rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
@@ -160,7 +160,7 @@ const GlobalCallWidget = () => {
                     </button>
                 )}
 
-                {/* Mute Button (Only Active) */}
+                {/* Mute Button (Only for Active Calls) */}
                 {isActive && (
                     <button
                         className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center transition-all ${
@@ -174,12 +174,12 @@ const GlobalCallWidget = () => {
                     </button>
                 )}
 
-                {/* Hangup / Cancel / Reject Button */}
+                {/* Reject / Hangup / Cancel Button */}
                 <button
                     className="btn btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
                     style={{ width: '60px', height: '60px' }}
                     onClick={endCall}
-                    title={isRinging ? "Cancel Call" : isIncoming ? "Reject Call" : "End Call"}
+                    title={isIncoming ? "Reject Call" : "End Call"}
                 >
                     <i className="bi bi-telephone-x-fill fs-4 text-white"></i>
                 </button>
