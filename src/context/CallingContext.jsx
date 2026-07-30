@@ -46,51 +46,6 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // Laravel Echo Setup for Webhooks
-    useEffect(() => {
-        console.log("Setting up Pusher Connection...");
-        try {
-            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
-            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2';
-
-            if (!echoInstanceRef.current) {
-                echoInstanceRef.current = new Echo({
-                    broadcaster: 'pusher',
-                    key: pusherKey,
-                    cluster: pusherCluster,
-                    forceTLS: true,
-                    disableStats: true
-                });
-            }
-
-            const channel = echoInstanceRef.current.channel('vonage-calls');
-            
-            const handleCallStatusUpdate = (data) => {
-                console.log("[Pusher Webhook] Call status received:", data);
-                const status = (data.status || data.call_status || '').toLowerCase();
-                const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer', 'unanswered'];
-                
-                if (endStates.includes(status)) {
-                    console.log(`[Pusher] Ending call state due to webhook status: ${status}`);
-                    cleanUpCallState(`Pusher remote status: ${status}`);
-                }
-            };
-
-            channel.listen('CallStatusUpdated', handleCallStatusUpdate);
-            channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
-            channel.listen('.call.status.updated', handleCallStatusUpdate);
-
-        } catch (error) {
-            console.error("Echo Setup Failed:", error);
-        }
-
-        return () => {
-            if (echoInstanceRef.current) {
-                echoInstanceRef.current.leaveChannel('vonage-calls');
-            }
-        };
-    }, []);
-
     const stopAllSounds = () => {
         console.log("Stopping all sound effects...");
         if (ringtoneAudioRef.current) {
@@ -121,68 +76,115 @@ export const CallProvider = ({ children }) => {
         });
     };
 
+    // Laravel Echo Setup (FIXED EVENT BINDING)
+    useEffect(() => {
+        console.log("Setting up Pusher Connection...");
+        try {
+            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
+            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2';
+
+            if (!echoInstanceRef.current) {
+                echoInstanceRef.current = new Echo({
+                    broadcaster: 'pusher',
+                    key: pusherKey,
+                    cluster: pusherCluster,
+                    forceTLS: true,
+                    disableStats: true
+                });
+            }
+
+            const channel = echoInstanceRef.current.channel('vonage-calls');
+            
+            const handleCallStatusUpdate = (data) => {
+                console.log("[Pusher Webhook] Status received from Laravel:", data);
+                const status = (data.status || data.call_status || '').toLowerCase();
+                
+                // If call answered via backend webhook
+                if (['answered', 'connected'].includes(status)) {
+                    stopAllSounds();
+                    setCallState(prev => ({ ...prev, status: 'active' }));
+                }
+
+                // If call completed / cancelled / busy / disconnected
+                const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer', 'unanswered', 'disconnected'];
+                if (endStates.includes(status)) {
+                    console.log(`[Pusher] Cleaning up call state for status: ${status}`);
+                    cleanUpCallState(`Pusher remote status: ${status}`);
+                }
+            };
+
+            // Catch all event formats from Laravel Broadcast
+            channel.listen('CallStatusUpdated', handleCallStatusUpdate);
+            channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
+            channel.listen('.call.status.updated', handleCallStatusUpdate);
+
+        } catch (error) {
+            console.error("Echo Setup Failed:", error);
+        }
+
+        return () => {
+            if (echoInstanceRef.current) {
+                echoInstanceRef.current.leaveChannel('vonage-calls');
+            }
+        };
+    }, []);
+
     const attachAudioStream = (call) => {
         if (!call) return;
-        console.log("Attempting to attach audio stream...");
+        console.log("Attaching audio stream...");
         
         const stream = call.htmlAudio?.srcObject || call.stream;
         if (stream && remoteAudioRef.current) {
-            console.log("Stream found, playing in element.");
             remoteAudioRef.current.srcObject = stream;
         } else if (typeof call.setAudioElement === 'function' && remoteAudioRef.current) {
-            console.log("Using setAudioElement for stream setup.");
             call.setAudioElement(remoteAudioRef.current);
         }
     };
 
-    // Bulletproof Event Binding
+    // FIXED: Direct Event Binding on Vonage Call Object
     const bindDirectCallEvents = (call) => {
         if (!call) return;
-        console.log("Binding events directly to Call Object:", call);
+        console.log("Binding direct event listeners to call object...", call);
 
-        call.on('member:media', (member, event) => {
-            console.log("Event: member:media triggered!");
-            attachAudioStream(call);
-        });
-
-        // Remote party joined/answered
-        call.on('member:joined', (member) => {
-            console.log("Event: member:joined -> State:", member?.state);
+        const handleCallAnswered = () => {
+            console.log("Call Answered! Transitioning UI to active.");
             stopAllSounds();
             attachAudioStream(call);
-            setCallState(prev => ({
-                ...prev,
-                status: 'active'
-            }));
+            setCallState(prev => ({ ...prev, status: 'active' }));
+        };
+
+        call.on('member:media', () => {
+            attachAudioStream(call);
         });
 
+        // Trigger on both member update & leg status update
+        call.on('member:joined', handleCallAnswered);
         call.on('member:updated', (member) => {
-            console.log("Event: member:updated -> State:", member?.state);
-            const state = (member?.state || "").toLowerCase();
-
-            if (['answered', 'joined'].includes(state)) {
-                stopAllSounds();
-                attachAudioStream(call);
-                setCallState(prev => ({ ...prev, status: 'active' }));
+            const state = (member?.state || '').toLowerCase();
+            if (['answered', 'joined', 'ready'].includes(state)) {
+                handleCallAnswered();
             }
         });
 
-        call.on('member:left', (member) => {
-            console.log("Event: member:left -> Member left the call.");
-            cleanUpCallState("Remote party left the call");
+        // Catch Leg status updates (Outbound Phone Legs)
+        call.on('leg:status:update', (leg) => {
+            console.log("Leg Status Updated:", leg?.status);
+            const status = (leg?.status || '').toLowerCase();
+            if (['answered', 'completed', 'busy', 'rejected'].includes(status)) {
+                if (status === 'answered') {
+                    handleCallAnswered();
+                } else {
+                    cleanUpCallState(`Leg ended with status: ${status}`);
+                }
+            }
         });
-    };
 
-    const listenToGlobalSessionEvents = (session) => {
-        if (!session) return;
-
-        session.on("conversation:member:joined", (member, event) => {
-            console.log("Global Event: Member Joined Session:", member);
+        call.on('member:left', () => {
+            cleanUpCallState("Remote party left (member:left)");
         });
 
-        session.on("conversation:member:left", (member, event) => {
-            console.log("Global Event: Member Left Session:", member);
-            cleanUpCallState("Client disconnected (left session)");
+        call.on('call:ended', () => {
+            cleanUpCallState("Call ended event triggered");
         });
     };
 
@@ -203,12 +205,9 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                listenToGlobalSessionEvents(clientApp);
-
                 // INBOUND CALLS
                 clientApp.on("member:call", (member, call) => {
                     if (call.direction === "inbound") {
-                        console.log("Inbound Call Detected!");
                         activeCallRef.current = call;
 
                         setCallState({
@@ -221,16 +220,15 @@ export const CallProvider = ({ children }) => {
 
                         if (ringtoneAudioRef.current) {
                             ringtoneAudioRef.current.loop = true;
-                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
+                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone play error:", e));
                         }
 
                         bindDirectCallEvents(call);
                     }
                 });
 
-                // OUTBOUND CALLS DETECT
+                // OUTBOUND CALLS
                 clientApp.on("call:created", (call) => {
-                    console.log("Outbound Call Created globally on Client:", call);
                     activeCallRef.current = call;
                     bindDirectCallEvents(call);
                 });
@@ -249,18 +247,12 @@ export const CallProvider = ({ children }) => {
 
     // OUTBOUND CALL TRIGGER
     const makeCall = async (phoneNumber, clientName) => {
-        if (!voiceAppRef.current) {
-            console.warn("Voice server is not ready yet.");
-            return;
-        }
-        if (!phoneNumber) return;
-        if (callState.status !== 'idle') return;
+        if (!voiceAppRef.current || !phoneNumber || callState.status !== 'idle') return;
 
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (err) {
-            console.error("Mic Error:", err);
-            alert("Microphone permission is required to place calls!");
+            alert("Microphone permission is required!");
             return;
         }
 
@@ -276,7 +268,7 @@ export const CallProvider = ({ children }) => {
 
         if (ringbackAudioRef.current) {
             ringbackAudioRef.current.loop = true;
-            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
+            ringbackAudioRef.current.play().catch(e => console.log("Ringing play error:", e));
         }
 
         try {
@@ -289,14 +281,6 @@ export const CallProvider = ({ children }) => {
             activeCallRef.current = call;
             bindDirectCallEvents(call);
 
-            if (call.conversation) {
-                call.conversation.on('member:joined', () => {
-                    stopAllSounds();
-                    attachAudioStream(call);
-                    setCallState(prev => ({ ...prev, status: 'active' }));
-                });
-            }
-
         } catch (error) {
             console.error("Failed to establish call:", error);
             cleanUpCallState("Server call fail");
@@ -306,7 +290,6 @@ export const CallProvider = ({ children }) => {
     const answerCall = () => {
         if (activeCallRef.current && callState.status === 'incoming') {
             stopAllSounds();
-
             activeCallRef.current.answer()
                 .then(() => {
                     attachAudioStream(activeCallRef.current);
@@ -320,9 +303,7 @@ export const CallProvider = ({ children }) => {
     };
 
     const endCall = () => {
-        console.log("Manual end call triggered");
         const call = activeCallRef.current;
-        
         cleanUpCallState("Agent ended call"); 
 
         if (!call) return;
