@@ -23,8 +23,9 @@ export const CallProvider = ({ children }) => {
     const echoInstanceRef = useRef(null); 
     const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
+    const isCleaningUpRef = useRef(false); // Flag to prevent multiple rapid cleanups
 
-    // Remote Voice Audio Stream Setup
+    // Remote Audio Setup
     useEffect(() => {
         isMountedRef.current = true;
 
@@ -35,42 +36,72 @@ export const CallProvider = ({ children }) => {
 
         return () => {
             isMountedRef.current = false;
-            cleanUpCallState("Component Unmounted");
             if (audioEl) audioEl.remove();
         };
     }, []);
 
+    // Safe Cleanup Method
     const cleanUpCallState = (reason = "Unknown Reason") => {
+        if (isCleaningUpRef.current) return; // Block re-entry if already cleaning up
+        isCleaningUpRef.current = true;
+
         console.log(`[Call Cleanup] Reason: ${reason}`);
-        activeCallRef.current = null;
+
+        // Safely unbind events from call instance before setting to null
+        if (activeCallRef.current) {
+            try {
+                if (typeof activeCallRef.current.off === 'function') {
+                    activeCallRef.current.off('member:media');
+                    activeCallRef.current.off('member:joined');
+                    activeCallRef.current.off('member:updated');
+                    activeCallRef.current.off('rtc:hangup');
+                    activeCallRef.current.off('member:left');
+                    activeCallRef.current.off('call:ended');
+                    activeCallRef.current.off('sip:hangup');
+                    activeCallRef.current.off('leg:status:update');
+                }
+            } catch (e) {
+                console.log("Error unbinding call events:", e);
+            }
+            activeCallRef.current = null;
+        }
 
         if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = null;
         }
 
-        setShowCallWidget(false);
-        setCallState({ 
-            status: 'idle', 
-            phoneNumber: null, 
-            clientName: null, 
-            isMuted: false 
-        });
+        if (isMountedRef.current) {
+            setShowCallWidget(false);
+            setCallState({ 
+                status: 'idle', 
+                phoneNumber: null, 
+                clientName: null, 
+                isMuted: false 
+            });
+        }
+
+        // Reset cleanup flag after state update settles
+        setTimeout(() => {
+            isCleaningUpRef.current = false;
+        }, 300);
     };
 
-    // Attach WebRTC Remote Audio Stream
+    // Attach WebRTC Audio Stream Safely
     const attachAudioStream = (call) => {
         if (!call) return;
-        console.log("Attaching audio stream...");
-        
-        const stream = call.htmlAudio?.srcObject || call.stream;
-        if (stream && remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = stream;
-        } else if (typeof call.setAudioElement === 'function' && remoteAudioRef.current) {
-            call.setAudioElement(remoteAudioRef.current);
+        try {
+            const stream = call.htmlAudio?.srcObject || call.stream;
+            if (stream && remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = stream;
+            } else if (typeof call.setAudioElement === 'function' && remoteAudioRef.current) {
+                call.setAudioElement(remoteAudioRef.current);
+            }
+        } catch (err) {
+            console.error("Audio stream attach error:", err);
         }
     };
 
-    // Laravel Echo / Pusher Webhook Listener
+    // Laravel Echo / Pusher Listener
     useEffect(() => {
         try {
             const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
@@ -89,7 +120,7 @@ export const CallProvider = ({ children }) => {
             const channel = echoInstanceRef.current.channel('vonage-calls');
             
             const handleCallStatusUpdate = (data) => {
-                console.log("[Pusher Remote Status Received]:", data);
+                if (!isMountedRef.current) return;
                 const status = (data?.status || data?.call_status || '').toLowerCase();
                 
                 if (status === 'ringing') {
@@ -98,10 +129,8 @@ export const CallProvider = ({ children }) => {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 }
 
-                // Call Termination States
                 const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer', 'unanswered', 'disconnected', 'remote_busy'];
                 if (endStates.includes(status)) {
-                    console.log(`[Pusher] Cleaning up call for status: ${status}`);
                     cleanUpCallState(`Pusher Event: ${status}`);
                 }
             };
@@ -120,53 +149,56 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // Direct Event Binding on Call Instance
+    // Direct SDK Event Binding
     const bindDirectCallEvents = (call) => {
-        if (!call) return;
-        console.log("Binding direct event listeners on call instance...", call);
+        if (!call || typeof call.on !== 'function') return;
 
         const handleCallAnswered = () => {
-            console.log("[Call State] Call Answered.");
+            if (!isMountedRef.current) return;
             attachAudioStream(call);
             setCallState(prev => ({ ...prev, status: 'active' }));
         };
 
         const handleCallEnded = (reason) => {
-            console.log(`[Call State] Call Terminated: ${reason}`);
-            cleanUpCallState(`Direct Event: ${reason}`);
+            cleanUpCallState(`SDK Event: ${reason}`);
         };
 
-        call.on('member:media', () => attachAudioStream(call));
-        call.on('member:joined', handleCallAnswered);
+        try {
+            call.on('member:media', () => attachAudioStream(call));
+            call.on('member:joined', handleCallAnswered);
 
-        call.on('member:updated', (member) => {
-            const state = (member?.state || '').toLowerCase();
-            if (['answered', 'joined', 'ready'].includes(state)) {
-                handleCallAnswered();
-            } else if (['ringing'].includes(state)) {
-                setCallState(prev => ({ ...prev, status: 'ringing' }));
-            } else if (['left', 'hungup', 'rejected', 'failed', 'busy'].includes(state)) {
-                handleCallEnded(`member:updated -> ${state}`);
-            }
-        });
+            call.on('member:updated', (member) => {
+                if (!isMountedRef.current) return;
+                const state = (member?.state || '').toLowerCase();
+                if (['answered', 'joined', 'ready'].includes(state)) {
+                    handleCallAnswered();
+                } else if (['ringing'].includes(state)) {
+                    setCallState(prev => ({ ...prev, status: 'ringing' }));
+                } else if (['left', 'hungup', 'rejected', 'failed', 'busy'].includes(state)) {
+                    handleCallEnded(`member:updated -> ${state}`);
+                }
+            });
 
-        call.on('rtc:hangup', () => handleCallEnded('rtc:hangup'));
-        call.on('member:left', () => handleCallEnded('member:left'));
-        call.on('call:ended', () => handleCallEnded('call:ended'));
-        call.on('sip:hangup', () => handleCallEnded('sip:hangup'));
+            call.on('rtc:hangup', () => handleCallEnded('rtc:hangup'));
+            call.on('member:left', () => handleCallEnded('member:left'));
+            call.on('call:ended', () => handleCallEnded('call:ended'));
+            call.on('sip:hangup', () => handleCallEnded('sip:hangup'));
 
-        call.on('leg:status:update', (leg) => {
-            console.log("Leg Status Update:", leg);
-            const status = (leg?.status || leg?.detail || '').toLowerCase();
-            
-            if (status === 'ringing') {
-                setCallState(prev => ({ ...prev, status: 'ringing' }));
-            } else if (['answered'].includes(status)) {
-                handleCallAnswered();
-            } else if (['completed', 'busy', 'rejected', 'cancelled', 'failed', 'remote_busy', 'hangup'].includes(status)) {
-                handleCallEnded(`leg status -> ${status}`);
-            }
-        });
+            call.on('leg:status:update', (leg) => {
+                if (!isMountedRef.current) return;
+                const status = (leg?.status || leg?.detail || '').toLowerCase();
+                
+                if (status === 'ringing') {
+                    setCallState(prev => ({ ...prev, status: 'ringing' }));
+                } else if (['answered'].includes(status)) {
+                    handleCallAnswered();
+                } else if (['completed', 'busy', 'rejected', 'cancelled', 'failed', 'remote_busy', 'hangup'].includes(status)) {
+                    handleCallEnded(`leg status -> ${status}`);
+                }
+            });
+        } catch (e) {
+            console.error("Failed to bind direct call events:", e);
+        }
     };
 
     // Initialize Vonage SDK Client
@@ -176,9 +208,9 @@ export const CallProvider = ({ children }) => {
         const initVonageClient = async () => {
             try {
                 const response = await api.get('/communications/voice-token');
-                if (!response.data?.token) return;
+                if (!response.data?.token || !isMountedRef.current) return;
 
-                const nexmo = new NexmoClient({ debug: true });
+                const nexmo = new NexmoClient({ debug: false }); // Set to false to reduce noise
                 nexmoClientRef.current = nexmo;
 
                 clientApp = await nexmo.createSession(response.data.token);
@@ -186,15 +218,13 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                // INBOUND CALL HANDLING
+                // INBOUND
                 const handleIncomingCall = (member, call) => {
                     const callObj = call || member;
-                    console.log("[Inbound Call Received]:", callObj);
-
                     activeCallRef.current = callObj;
                     setCallState({
                         status: 'incoming',
-                        phoneNumber: callObj?.from || callObj?.conversation?.display_name || 'Customer',
+                        phoneNumber: callObj?.from || 'Customer',
                         clientName: "Incoming Call",
                         isMuted: false
                     });
@@ -205,7 +235,7 @@ export const CallProvider = ({ children }) => {
                 clientApp.on("member:call", handleIncomingCall);
                 clientApp.on("call:incoming", handleIncomingCall);
 
-                // OUTBOUND CALL HANDLING
+                // OUTBOUND
                 clientApp.on("call:created", (call) => {
                     activeCallRef.current = call;
                     bindDirectCallEvents(call);
@@ -219,7 +249,7 @@ export const CallProvider = ({ children }) => {
         initVonageClient();
     }, []);
 
-    // PlACEMENT OF OUTBOUND CALL
+    // Make Outbound Call
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current || !phoneNumber || callState.status !== 'idle') return;
 
@@ -232,7 +262,6 @@ export const CallProvider = ({ children }) => {
 
         const formattedNumber = phoneNumber.replace(/\D/g, '');
         
-        // Initial state: Calling
         setCallState({ 
             status: 'calling', 
             phoneNumber: formattedNumber, 
@@ -242,7 +271,6 @@ export const CallProvider = ({ children }) => {
         setShowCallWidget(true);
 
         try {
-            console.log(`Placing Outbound Call to: ${formattedNumber}`);
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
             });
