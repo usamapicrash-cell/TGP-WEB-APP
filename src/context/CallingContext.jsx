@@ -14,7 +14,6 @@ export const CallProvider = ({ children }) => {
         phoneNumber: null,
         clientName: null,
         isMuted: false,
-        direction: 'outbound' // 'inbound' | 'outbound'
     });
     const [showCallWidget, setShowCallWidget] = useState(false);
 
@@ -26,12 +25,15 @@ export const CallProvider = ({ children }) => {
     const isMountedRef = useRef(true);
     const isCleaningUpRef = useRef(false);
 
+    // Track active call direction across renders to stop race-conditions
+    const callDirectionRef = useRef(null); // 'outbound' | 'inbound' | null
+
     const safeString = (val, fallback = '') => {
         if (!val) return fallback;
         if (typeof val === 'string') return val;
         if (typeof val === 'number') return String(val);
         if (typeof val === 'object') {
-            return val.display_name || val.name || val.number || val.id || fallback;
+            return val.number || val.display_name || val.name || val.id || fallback;
         }
         return fallback;
     };
@@ -53,6 +55,7 @@ export const CallProvider = ({ children }) => {
     const cleanUpCallState = (reason = "Unknown Reason") => {
         if (isCleaningUpRef.current) return;
         isCleaningUpRef.current = true;
+        callDirectionRef.current = null;
 
         console.log(`[Call Cleanup] Reason: ${reason}`);
 
@@ -84,8 +87,7 @@ export const CallProvider = ({ children }) => {
                 status: 'idle', 
                 phoneNumber: null, 
                 clientName: null, 
-                isMuted: false,
-                direction: 'outbound'
+                isMuted: false 
             });
         }
 
@@ -171,12 +173,18 @@ export const CallProvider = ({ children }) => {
 
         try {
             call.on('member:media', () => attachAudioStream(call));
-            call.on('member:joined', handleCallAnswered);
+            call.on('member:joined', () => {
+                // Outbound flow mein jawani switch nahi karenge as answer
+                if (callDirectionRef.current === 'inbound') {
+                    handleCallAnswered();
+                }
+            });
 
             call.on('member:updated', (member) => {
                 if (!isMountedRef.current) return;
                 const state = (member?.state || '').toLowerCase();
-                if (['answered', 'joined', 'ready'].includes(state)) {
+
+                if (['answered'].includes(state)) {
                     handleCallAnswered();
                 } else if (['ringing'].includes(state)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
@@ -207,6 +215,7 @@ export const CallProvider = ({ children }) => {
         }
     };
 
+    // Initialize Vonage SDK Client
     useEffect(() => {
         let clientApp = null;
 
@@ -223,12 +232,15 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
+                // INBOUND LISTENER (Strict Guard)
                 const handleIncomingCall = (member, call) => {
-                    // Agar hum already outbound call kar rahe hain to incoming event ignore karein
-                    if (callState.status !== 'idle' && callState.direction === 'outbound') {
+                    // Critical Fix: Agar pehle se Outbound call chal rahi ho to Inbound listener IGNORE kar do!
+                    if (callDirectionRef.current === 'outbound') {
+                        console.warn("[Vonage] Outbound leg event intercepted, ignoring incoming trigger.");
                         return;
                     }
 
+                    callDirectionRef.current = 'inbound';
                     const callObj = call || member;
                     activeCallRef.current = callObj;
 
@@ -238,9 +250,8 @@ export const CallProvider = ({ children }) => {
                     setCallState({
                         status: 'incoming',
                         phoneNumber: parsedNumber,
-                        clientName: "Incoming Call",
-                        isMuted: false,
-                        direction: 'inbound'
+                        clientName: parsedNumber,
+                        isMuted: false
                     });
                     setShowCallWidget(true);
                     bindDirectCallEvents(callObj);
@@ -248,11 +259,6 @@ export const CallProvider = ({ children }) => {
 
                 clientApp.on("member:call", handleIncomingCall);
                 clientApp.on("call:incoming", handleIncomingCall);
-
-                clientApp.on("call:created", (call) => {
-                    activeCallRef.current = call;
-                    bindDirectCallEvents(call);
-                });
 
             } catch (error) {
                 console.error("Vonage Voice Client Initialization Failed:", error);
@@ -262,8 +268,9 @@ export const CallProvider = ({ children }) => {
         initVonageClient();
     }, []);
 
+    // Make Outbound Call
     const makeCall = async (phoneNumber, clientName) => {
-        if (!voiceAppRef.current || !phoneNumber || callState.status !== 'idle') return;
+        if (!voiceAppRef.current || !phoneNumber) return;
 
         try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -272,15 +279,16 @@ export const CallProvider = ({ children }) => {
             return;
         }
 
+        // Set state to Outbound
+        callDirectionRef.current = 'outbound';
         const formattedNumber = safeString(phoneNumber).replace(/\D/g, '');
-        const formattedClientName = safeString(clientName, 'Customer');
+        const targetDisplay = safeString(phoneNumber, 'Customer');
         
         setCallState({ 
             status: 'calling', 
             phoneNumber: formattedNumber, 
-            clientName: formattedClientName, 
-            isMuted: false,
-            direction: 'outbound'
+            clientName: targetDisplay, 
+            isMuted: false 
         });
         setShowCallWidget(true);
 
