@@ -38,7 +38,7 @@ const GlobalCallWidget = () => {
         };
     }, [callState.status]);
 
-    // Safety: If idle, render nothing
+    // Don't render anything if call is idle
     if (!callState || callState.status === 'idle') {
         return null;
     }
@@ -56,7 +56,7 @@ const GlobalCallWidget = () => {
 
     const getStatusBadge = () => {
         if (isIncoming) return '🔔 Incoming Call';
-        if (isRinging) return '🔔 Ringing...';
+        if (isRinging) return '🔔 Phone Ringing...';
         if (isActive) return `🟢 Connected (${formatDuration(elapsedSeconds)})`;
         if (isCalling) return '📞 Initiating Call...';
         return 'Connecting...';
@@ -65,7 +65,7 @@ const GlobalCallWidget = () => {
     const displayName = renderText(callState.clientName, 'Customer');
     const displayPhone = renderText(callState.phoneNumber, 'Private Number');
 
-    // --- STAGE 1: Minimized Floating Pill ---
+    // Minimized Mode
     if (!showCallWidget) {
         return (
             <div
@@ -80,7 +80,7 @@ const GlobalCallWidget = () => {
                     padding: '12px 24px',
                     cursor: 'pointer',
                     boxShadow: '0px 10px 25px rgba(0,0,0,0.3)',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    transition: 'all 0.3s ease'
                 }}
             >
                 <i className={`bi ${isActive ? 'bi-telephone-fill' : 'bi-telephone-outbound-fill'} fs-5`}></i>
@@ -96,7 +96,7 @@ const GlobalCallWidget = () => {
         );
     }
 
-    // --- STAGE 2: Expanded Call Interface ---
+    // Expanded Overlay Mode
     return (
         <div
             className="card border-0 shadow-lg position-fixed text-white p-4"
@@ -112,7 +112,7 @@ const GlobalCallWidget = () => {
                 transition: 'all 0.3s ease-in-out'
             }}
         >
-            {/* Header */}
+            {/* Header Status */}
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <span className={`badge rounded-pill px-3 py-2 d-flex align-items-center gap-2 ${
                     isActive ? 'bg-success text-white' : isRinging ? 'bg-info text-dark' : isIncoming ? 'bg-warning text-dark' : 'bg-primary text-white'
@@ -130,7 +130,7 @@ const GlobalCallWidget = () => {
                 </button>
             </div>
 
-            {/* Caller Details & Avatar */}
+            {/* Caller Profile */}
             <div className="text-center my-3">
                 <div
                     className="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 shadow position-relative"
@@ -148,48 +148,42 @@ const GlobalCallWidget = () => {
                 <p className="text-white-50 small mb-0 font-monospace">{displayPhone}</p>
             </div>
 
-            {/* Dynamic Subtitle Text */}
+            {/* Subtitle Message */}
             <div className="text-center mb-4" style={{ height: '20px' }}>
                 {isActive && <p className="text-success small fw-semibold mb-0">Call in progress</p>}
-                {isRinging && <p className="text-info small fw-semibold mb-0">Phone is ringing...</p>}
-                {isCalling && <p className="text-white-50 small mb-0">Initiating connection...</p>}
+                {isRinging && <p className="text-info small fw-semibold mb-0">Ringing client device...</p>}
+                {isCalling && <p className="text-white-50 small mb-0">Connecting to server...</p>}
                 {isIncoming && <p className="text-warning small mb-0 fw-bold">Incoming Voice Call</p>}
             </div>
 
-            {/* Action Controls */}
+            {/* Controls */}
             <div className="d-flex justify-content-center gap-3 align-items-center">
-                {/* Answer Button (Only Inbound) */}
                 {isIncoming && (
                     <button
                         className="btn btn-success rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
                         style={{ width: '60px', height: '60px' }}
                         onClick={answerCall}
-                        title="Answer Call"
                     >
                         <i className="bi bi-telephone-fill fs-4 text-white"></i>
                     </button>
                 )}
 
-                {/* Mute Button (Active Call) */}
                 {isActive && (
                     <button
-                        className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center transition-all ${
+                        className={`btn rounded-circle p-0 d-flex align-items-center justify-content-center ${
                             callState.isMuted ? 'btn-warning text-dark' : 'btn-outline-light text-white'
                         }`}
                         style={{ width: '52px', height: '52px' }}
                         onClick={toggleMute}
-                        title={callState.isMuted ? "Unmute Microphone" : "Mute Microphone"}
                     >
                         <i className={`bi bi-mic-${callState.isMuted ? 'mute-' : ''}fill fs-5`}></i>
                     </button>
                 )}
 
-                {/* End / Hangup Button */}
                 <button
                     className="btn btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center shadow-lg"
                     style={{ width: '60px', height: '60px' }}
                     onClick={endCall}
-                    title={isIncoming ? "Reject Call" : "End Call"}
                 >
                     <i className="bi bi-telephone-x-fill fs-4 text-white"></i>
                 </button>
