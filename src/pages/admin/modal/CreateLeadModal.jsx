@@ -10,7 +10,7 @@ const CreateLeadModal = ({ show, onClose, onLeadCreated }) => {
     // Refs for Google Autocomplete
     const addressInputRef = useRef(null);
     const jobAddressInputRef = useRef(null);
-    const GOOGLE_API_KEY = "AIzaSyApsT1aMOwmUMM2aHhr5MDfHYLk6b9mAhM";
+    const GOOGLE_API_KEY = "AIzaSyDipA9Tq4jdrydAMqhkOCEzeqDCZR3Q5co";
 
     // Initial State
     const initialFormState = {
