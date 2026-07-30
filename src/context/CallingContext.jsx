@@ -8,10 +8,6 @@ window.Pusher = Pusher;
 
 const CallContext = createContext();
 
-// 🔥 Safety timeouts - agar backend se koi status update na aaye to bhi UI stuck na rahe
-const CALL_HARD_TIMEOUT_MS = 45000; // 45 sec - agar itni dair mein kuch na ho to call cancel treat karo
-const RINGING_TIMEOUT_MS = 30000;   // 30 sec ringing ke baad bhi kuch na ho to cleanup
-
 export const CallProvider = ({ children }) => {
     const [callState, setCallState] = useState({
         status: 'idle', // idle | calling | ringing | incoming | active
@@ -29,8 +25,6 @@ export const CallProvider = ({ children }) => {
     const remoteAudioRef = useRef(null);
     const isMountedRef = useRef(true);
     const isOutboundCallActiveRef = useRef(false);
-    const hardTimeoutRef = useRef(null); // 🔥 new: overall call timeout
-    const lastEventAtRef = useRef(null); // 🔥 new: tracks last time any status event arrived
 
     const safeString = (val, fallback = '') => {
         if (!val) return fallback;
@@ -42,22 +36,12 @@ export const CallProvider = ({ children }) => {
         return fallback;
     };
 
-    // 🔥 Clears any pending safety timeout
-    const clearHardTimeout = () => {
-        if (hardTimeoutRef.current) {
-            clearTimeout(hardTimeoutRef.current);
-            hardTimeoutRef.current = null;
-        }
-    };
-
     // 🔥 Forceful Instant State Reset
     const cleanUpCallState = (reason = "Unknown") => {
         console.log(`[Call Cleanup Triggered] -> Reason: ${reason}`);
 
-        clearHardTimeout();
         isOutboundCallActiveRef.current = false;
         activeConversationUuidRef.current = null;
-        lastEventAtRef.current = null;
 
         if (activeCallRef.current) {
             try {
@@ -81,16 +65,6 @@ export const CallProvider = ({ children }) => {
             clientName: null,
             isMuted: false
         });
-    };
-
-    // 🔥 Restart the hard timeout whenever we get a fresh signal (event or status change)
-    const armHardTimeout = (ms = CALL_HARD_TIMEOUT_MS, reasonLabel = "Hard timeout - no server update") => {
-        clearHardTimeout();
-        lastEventAtRef.current = Date.now();
-        hardTimeoutRef.current = setTimeout(() => {
-            console.warn(`[Call Watchdog] ${reasonLabel} (${ms}ms elapsed with no update)`);
-            cleanUpCallState(reasonLabel);
-        }, ms);
     };
 
     const attachAudioStream = (call) => {
@@ -136,8 +110,17 @@ export const CallProvider = ({ children }) => {
         document.body.appendChild(audioEl);
 
         try {
-            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
-            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap2';
+            const pusherKey = '355c9972a93b7b6dc813';
+            const pusherCluster = 'ap2';
+
+            // 🔥 Ab silent-wrong-fallback nahi hai. Agar .env missing/purana build hai
+            // to yahan seedha error dikhega console mein (pehle chup-chaap galat key use ho rahi thi).
+            if (!pusherKey || !pusherCluster) {
+                console.error(
+                    "[Pusher Config Missing] VITE_PUSHER_APP_KEY / VITE_PUSHER_APP_CLUSTER .env mein set nahi hain, " +
+                    "ya build purana hai (Vite env vars build-time par bake hote hain — .env change ke baad rebuild karein)."
+                );
+            }
 
             if (!echoInstanceRef.current) {
                 echoInstanceRef.current = new Echo({
@@ -148,13 +131,11 @@ export const CallProvider = ({ children }) => {
                     disableStats: true
                 });
 
-                // 🔥 Debug: confirm the socket actually connects.
-                // Check browser console -> agar "Pusher connection: connected" nahi dikh raha
-                // to iska matlab events backend se aa hi nahi rahe (network/firewall/key issue).
+                // 🔥 Debug: confirm socket connects to the RIGHT app (key/cluster printed for verification)
                 try {
                     const pusherConn = echoInstanceRef.current.connector.pusher.connection;
                     pusherConn.bind('state_change', (states) => {
-                        console.log(`[Pusher connection] ${states.previous} -> ${states.current}`);
+                        console.log(`[Pusher connection] ${states.previous} -> ${states.current} (key: ${pusherKey}, cluster: ${pusherCluster})`);
                     });
                 } catch (e) {
                     console.warn("Could not attach Pusher connection debug listener:", e);
@@ -173,18 +154,11 @@ export const CallProvider = ({ children }) => {
 
                 if (bucket === 'ringing') {
                     setCallState(prev => (prev.status === 'idle' ? prev : { ...prev, status: 'ringing' }));
-                    armHardTimeout(RINGING_TIMEOUT_MS, "Ringing timeout - customer did not answer/reject in time");
                 } else if (bucket === 'active') {
                     setCallState(prev => (prev.status === 'idle' ? prev : { ...prev, status: 'active' }));
-                    armHardTimeout(CALL_HARD_TIMEOUT_MS, "Active call watchdog - stale connection");
                 } else if (bucket === 'terminal') {
                     // 🔥 Terminal statuses instantly kill the widget
                     cleanUpCallState(`Pusher status: ${rawStatus}`);
-                } else {
-                    // Unknown status still counts as a "heartbeat" so watchdog doesn't fire early
-                    if (hardTimeoutRef.current) {
-                        armHardTimeout(CALL_HARD_TIMEOUT_MS, "Hard timeout - no server update");
-                    }
                 }
             };
 
@@ -201,7 +175,6 @@ export const CallProvider = ({ children }) => {
             if (echoInstanceRef.current) {
                 echoInstanceRef.current.leaveChannel('vonage-calls');
             }
-            clearHardTimeout();
         };
     }, []);
 
@@ -218,10 +191,8 @@ export const CallProvider = ({ children }) => {
                 if (bucket === 'active') {
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                    armHardTimeout(CALL_HARD_TIMEOUT_MS, "Active call watchdog - stale connection");
                 } else if (bucket === 'ringing') {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
-                    armHardTimeout(RINGING_TIMEOUT_MS, "Ringing timeout - customer did not answer/reject in time");
                 } else if (bucket === 'terminal') {
                     cleanUpCallState(`SDK member state: ${state}`);
                 }
@@ -233,11 +204,9 @@ export const CallProvider = ({ children }) => {
                 const bucket = classifyStatus(status);
                 if (bucket === 'ringing') {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
-                    armHardTimeout(RINGING_TIMEOUT_MS, "Ringing timeout - customer did not answer/reject in time");
                 } else if (bucket === 'active') {
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                    armHardTimeout(CALL_HARD_TIMEOUT_MS, "Active call watchdog - stale connection");
                 } else if (bucket === 'terminal') {
                     cleanUpCallState(`SDK leg status: ${status}`);
                 }
@@ -285,7 +254,6 @@ export const CallProvider = ({ children }) => {
                     });
                     setShowCallWidget(true);
                     bindDirectCallEvents(callObj);
-                    armHardTimeout(RINGING_TIMEOUT_MS, "Incoming call not answered in time");
                 };
 
                 clientApp.on("member:call", handleIncomingCall);
@@ -323,10 +291,6 @@ export const CallProvider = ({ children }) => {
         });
         setShowCallWidget(true);
 
-        // 🔥 Start the safety watchdog the moment we dial.
-        // Agar backend/Pusher se koi bhi status event na aaye, 45 sec baad khud hi cleanup ho jayega.
-        armHardTimeout(CALL_HARD_TIMEOUT_MS, "Hard timeout - no server update after dialing");
-
         try {
             const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
                 number: formattedNumber
@@ -350,7 +314,6 @@ export const CallProvider = ({ children }) => {
                 .then(() => {
                     attachAudioStream(activeCallRef.current);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                    armHardTimeout(CALL_HARD_TIMEOUT_MS, "Active call watchdog - stale connection");
                 })
                 .catch((err) => {
                     console.error("Answer Call error:", err);
