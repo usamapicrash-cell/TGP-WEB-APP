@@ -56,7 +56,7 @@ export const CallProvider = ({ children }) => {
         isCleaningUpRef.current = true;
         callDirectionRef.current = null;
 
-        console.log(`[Call Cleanup Triggered] Reason: ${reason}`);
+        console.log(`[Call Cleanup] Executing -> Reason: ${reason}`);
 
         if (activeCallRef.current) {
             try {
@@ -92,7 +92,7 @@ export const CallProvider = ({ children }) => {
 
         setTimeout(() => {
             isCleaningUpRef.current = false;
-        }, 200);
+        }, 150);
     };
 
     const attachAudioStream = (call) => {
@@ -109,7 +109,15 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Laravel Echo / Pusher Listener
+    // Robust Status Parsing Helper for Webhook Payload Variations
+    const parseEventStatus = (data) => {
+        if (!data) return '';
+        if (typeof data === 'string') return data.toLowerCase();
+        const rawStatus = data.status || data.call_status || data.state || data.detail || (data.payload && data.payload.status) || '';
+        return String(rawStatus).toLowerCase().trim();
+    };
+
+    // Laravel Echo / Pusher Listener (Bulletproof Event Catching)
     useEffect(() => {
         try {
             const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
@@ -129,24 +137,23 @@ export const CallProvider = ({ children }) => {
             
             const handleCallStatusUpdate = (data) => {
                 if (!isMountedRef.current) return;
-                const status = (data?.status || data?.call_status || '').toLowerCase();
-                console.log(`[Pusher Voice Event] Status: ${status}`, data);
-                
-                if (status === 'ringing') {
+                const status = parseEventStatus(data);
+                console.log(`[Pusher Broadcaster Incoming] Extracted Status: "${status}"`, data);
+
+                if (['ringing', 'ring'].includes(status)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
-                } else if (['answered', 'connected'].includes(status)) {
+                } else if (['answered', 'connected', 'active'].includes(status)) {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 }
 
-                // Expanded terminate statuses (includes remote_busy & busy)
                 const endStates = [
                     'completed', 'busy', 'remote_busy', 'cancelled', 
-                    'timeout', 'rejected', 'failed', 'no-answer', 
-                    'unanswered', 'disconnected', 'declined', 'hangup'
+                    'timeout', 'ring_timeout', 'rejected', 'failed', 
+                    'no-answer', 'unanswered', 'disconnected', 'declined', 'hangup', 'ok'
                 ];
-                
+
                 if (endStates.includes(status)) {
-                    cleanUpCallState(`Pusher Event: ${status}`);
+                    cleanUpCallState(`Pusher Broadcast Status: ${status}`);
                 }
             };
 
@@ -169,32 +176,43 @@ export const CallProvider = ({ children }) => {
 
         const handleCallAnswered = () => {
             if (!isMountedRef.current) return;
+            console.log("[SDK Event] Call Answered & Media Connected");
             attachAudioStream(call);
             setCallState(prev => ({ ...prev, status: 'active' }));
         };
 
         const handleCallEnded = (reason) => {
-            cleanUpCallState(`SDK Event: ${reason}`);
+            cleanUpCallState(`SDK Call Event -> ${reason}`);
         };
 
         try {
             call.on('member:media', () => attachAudioStream(call));
-            call.on('member:joined', () => {
-                if (callDirectionRef.current === 'inbound') {
-                    handleCallAnswered();
-                }
-            });
 
             call.on('member:updated', (member) => {
                 if (!isMountedRef.current) return;
-                const state = (member?.state || '').toLowerCase();
+                const state = parseEventStatus(member);
+                console.log(`[SDK member:updated] State: ${state}`);
 
-                if (['answered'].includes(state)) {
+                if (['answered', 'joined', 'connected'].includes(state)) {
                     handleCallAnswered();
                 } else if (['ringing'].includes(state)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
                 } else if (['left', 'hungup', 'rejected', 'failed', 'busy', 'completed', 'remote_busy'].includes(state)) {
-                    handleCallEnded(`member:updated -> ${state}`);
+                    handleCallEnded(`member:updated state = ${state}`);
+                }
+            });
+
+            call.on('leg:status:update', (leg) => {
+                if (!isMountedRef.current) return;
+                const status = parseEventStatus(leg);
+                console.log(`[SDK leg:status:update] Status: ${status}`);
+
+                if (['ringing'].includes(status)) {
+                    setCallState(prev => ({ ...prev, status: 'ringing' }));
+                } else if (['answered', 'connected'].includes(status)) {
+                    handleCallAnswered();
+                } else if (['completed', 'busy', 'rejected', 'cancelled', 'failed', 'remote_busy', 'hangup', 'ok'].includes(status)) {
+                    handleCallEnded(`leg:status = ${status}`);
                 }
             });
 
@@ -203,18 +221,6 @@ export const CallProvider = ({ children }) => {
             call.on('call:ended', () => handleCallEnded('call:ended'));
             call.on('sip:hangup', () => handleCallEnded('sip:hangup'));
 
-            call.on('leg:status:update', (leg) => {
-                if (!isMountedRef.current) return;
-                const status = (leg?.status || leg?.detail || '').toLowerCase();
-                
-                if (status === 'ringing') {
-                    setCallState(prev => ({ ...prev, status: 'ringing' }));
-                } else if (['answered'].includes(status)) {
-                    handleCallAnswered();
-                } else if (['completed', 'busy', 'rejected', 'cancelled', 'failed', 'remote_busy', 'hangup'].includes(status)) {
-                    handleCallEnded(`leg status -> ${status}`);
-                }
-            });
         } catch (e) {
             console.error("Failed to bind direct call events:", e);
         }
