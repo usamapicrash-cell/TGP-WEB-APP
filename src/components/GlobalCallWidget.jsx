@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useCall } from '../context/CallingContext'; // Path verify karein
+import { useCall } from '../context/CallingContext'; 
 
 const GlobalCallWidget = () => {
     const { callState, showCallWidget, setShowCallWidget, answerCall, endCall, toggleMute } = useCall();
@@ -8,7 +8,6 @@ const GlobalCallWidget = () => {
 
     const themeColor = '#1e293b';
 
-    // Helper to safely render strings in JSX
     const renderText = (val, fallback = '') => {
         if (!val) return fallback;
         if (typeof val === 'string' || typeof val === 'number') return String(val);
@@ -122,7 +121,7 @@ const GlobalCallWidget = () => {
                 </span>
 
                 <button
-                    className="btn btn-sm text-white-50 p-0 border-0 shadow-none hover-white"
+                    className="btn btn-sm text-white-50 p-0 border-0 shadow-none"
                     onClick={() => setShowCallWidget(false)}
                     title="Minimize"
                 >
@@ -153,12 +152,11 @@ const GlobalCallWidget = () => {
                 {isActive && <p className="text-success small fw-semibold mb-0">Call in progress</p>}
                 {isCalling && <p className="text-white-50 small mb-0">Initiating connection...</p>}
                 {isRinging && <p className="text-info small mb-0">Ringing on customer's phone...</p>}
-                {isIncoming && <p className="text-warning small mb-0 font-weight-bold">Incoming Voice Call</p>}
+                {isIncoming && <p className="text-warning small mb-0 fw-bold">Incoming Voice Call</p>}
             </div>
 
             {/* Call Action Controls */}
             <div className="d-flex justify-content-center gap-3 align-items-center">
-
                 {/* Answer Button */}
                 {isIncoming && (
                     <button

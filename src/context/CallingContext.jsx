@@ -14,6 +14,7 @@ export const CallProvider = ({ children }) => {
         phoneNumber: null,
         clientName: null,
         isMuted: false,
+        direction: 'outbound' // 'inbound' | 'outbound'
     });
     const [showCallWidget, setShowCallWidget] = useState(false);
 
@@ -25,7 +26,6 @@ export const CallProvider = ({ children }) => {
     const isMountedRef = useRef(true);
     const isCleaningUpRef = useRef(false);
 
-    // Helper: Ensure value is ALWAYS a string and never an Object
     const safeString = (val, fallback = '') => {
         if (!val) return fallback;
         if (typeof val === 'string') return val;
@@ -36,7 +36,6 @@ export const CallProvider = ({ children }) => {
         return fallback;
     };
 
-    // Remote Audio Setup
     useEffect(() => {
         isMountedRef.current = true;
 
@@ -51,7 +50,6 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // Safe Cleanup Method
     const cleanUpCallState = (reason = "Unknown Reason") => {
         if (isCleaningUpRef.current) return;
         isCleaningUpRef.current = true;
@@ -86,7 +84,8 @@ export const CallProvider = ({ children }) => {
                 status: 'idle', 
                 phoneNumber: null, 
                 clientName: null, 
-                isMuted: false 
+                isMuted: false,
+                direction: 'outbound'
             });
         }
 
@@ -157,7 +156,6 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // Direct SDK Event Binding
     const bindDirectCallEvents = (call) => {
         if (!call || typeof call.on !== 'function') return;
 
@@ -209,7 +207,6 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Initialize Vonage SDK Client
     useEffect(() => {
         let clientApp = null;
 
@@ -226,12 +223,15 @@ export const CallProvider = ({ children }) => {
 
                 if (!isMountedRef.current) return;
 
-                // INBOUND
                 const handleIncomingCall = (member, call) => {
+                    // Agar hum already outbound call kar rahe hain to incoming event ignore karein
+                    if (callState.status !== 'idle' && callState.direction === 'outbound') {
+                        return;
+                    }
+
                     const callObj = call || member;
                     activeCallRef.current = callObj;
 
-                    // Extracted string safely using safeString helper
                     const rawFrom = callObj?.from || callObj?.user?.name;
                     const parsedNumber = safeString(rawFrom, 'Incoming Call');
 
@@ -239,7 +239,8 @@ export const CallProvider = ({ children }) => {
                         status: 'incoming',
                         phoneNumber: parsedNumber,
                         clientName: "Incoming Call",
-                        isMuted: false
+                        isMuted: false,
+                        direction: 'inbound'
                     });
                     setShowCallWidget(true);
                     bindDirectCallEvents(callObj);
@@ -248,7 +249,6 @@ export const CallProvider = ({ children }) => {
                 clientApp.on("member:call", handleIncomingCall);
                 clientApp.on("call:incoming", handleIncomingCall);
 
-                // OUTBOUND
                 clientApp.on("call:created", (call) => {
                     activeCallRef.current = call;
                     bindDirectCallEvents(call);
@@ -262,7 +262,6 @@ export const CallProvider = ({ children }) => {
         initVonageClient();
     }, []);
 
-    // Make Outbound Call
     const makeCall = async (phoneNumber, clientName) => {
         if (!voiceAppRef.current || !phoneNumber || callState.status !== 'idle') return;
 
@@ -280,7 +279,8 @@ export const CallProvider = ({ children }) => {
             status: 'calling', 
             phoneNumber: formattedNumber, 
             clientName: formattedClientName, 
-            isMuted: false 
+            isMuted: false,
+            direction: 'outbound'
         });
         setShowCallWidget(true);
 
