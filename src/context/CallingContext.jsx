@@ -46,7 +46,7 @@ export const CallProvider = ({ children }) => {
         };
     }, []);
 
-    // Laravel Echo Setup for Webhooks (Completed/Ended calls)
+    // Laravel Echo Setup for Webhooks
     useEffect(() => {
         console.log("Setting up Pusher Connection...");
         try {
@@ -68,7 +68,7 @@ export const CallProvider = ({ children }) => {
             const handleCallStatusUpdate = (data) => {
                 console.log("[Pusher Webhook] Call status received:", data);
                 const status = (data.status || data.call_status || '').toLowerCase();
-                const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer'];
+                const endStates = ['completed', 'busy', 'cancelled', 'timeout', 'rejected', 'failed', 'no-answer', 'unanswered'];
                 
                 if (endStates.includes(status)) {
                     console.log(`[Pusher] Ending call state due to webhook status: ${status}`);
@@ -92,7 +92,7 @@ export const CallProvider = ({ children }) => {
     }, []);
 
     const stopAllSounds = () => {
-        console.log("Stopping all sounds...");
+        console.log("Stopping all sound effects...");
         if (ringtoneAudioRef.current) {
             ringtoneAudioRef.current.pause();
             ringtoneAudioRef.current.currentTime = 0;
@@ -135,55 +135,44 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Call ke events ko bilkul bulletproof bind karne ka naya function
-    // 1. Updated and Bulletproof Call Event Binder
-const bindDirectCallEvents = (call) => {
-    if (!call) return;
-    console.log("Binding events directly to Call Object:", call);
+    // Bulletproof Event Binding
+    const bindDirectCallEvents = (call) => {
+        if (!call) return;
+        console.log("Binding events directly to Call Object:", call);
 
-    // Stream ready hone par audio play karein
-    call.on('member:media', (member, event) => {
-        console.log("Event: member:media triggered!");
-        attachAudioStream(call);
-    });
+        call.on('member:media', (member, event) => {
+            console.log("Event: member:media triggered!");
+            attachAudioStream(call);
+        });
 
-    // Jab koi member call join kare (chahe inbound ho ya outbound)
-    call.on('member:joined', (member) => {
-        console.log("Event: member:joined -> Name:", member.user.name, "State:", member.state);
-        
-        // Agar remote user join ho gaya hai (Answered State)
-        if (member.user.name !== 'tgp_portal_user') { 
-            console.log("!!! REMOTE USER HAS JOINED / ANSWERED !!!");
+        // Remote party joined/answered
+        call.on('member:joined', (member) => {
+            console.log("Event: member:joined -> State:", member?.state);
             stopAllSounds();
             attachAudioStream(call);
             setCallState(prev => ({
                 ...prev,
                 status: 'active'
             }));
-        }
-    });
+        });
 
-    // Jab member update ho (Fallback mechanism for answer state)
-    call.on('member:updated', (member) => {
-        console.log("Event: member:updated -> State:", member.state);
-        const state = (member.state || "").toLowerCase();
+        call.on('member:updated', (member) => {
+            console.log("Event: member:updated -> State:", member?.state);
+            const state = (member?.state || "").toLowerCase();
 
-        if (['answered', 'joined'].includes(state)) {
-            console.log("!!! CALL ANSWERED (MEMBER UPDATED) !!!");
-            stopAllSounds();
-            attachAudioStream(call);
-            setCallState(prev => ({ ...prev, status: 'active' }));
-        }
-    });
+            if (['answered', 'joined'].includes(state)) {
+                stopAllSounds();
+                attachAudioStream(call);
+                setCallState(prev => ({ ...prev, status: 'active' }));
+            }
+        });
 
-    // Call Hangup / Disconnect states
-    call.on('member:left', (member) => {
-        console.log("Event: member:left -> Member left the call.");
-        cleanUpCallState("Remote party left the call");
-    });
-};
+        call.on('member:left', (member) => {
+            console.log("Event: member:left -> Member left the call.");
+            cleanUpCallState("Remote party left the call");
+        });
+    };
 
-    // Global Conversation/Member event listener
     const listenToGlobalSessionEvents = (session) => {
         if (!session) return;
 
@@ -206,7 +195,7 @@ const bindDirectCallEvents = (call) => {
                 const response = await api.get('/communications/voice-token');
                 if (!response.data?.token) return;
 
-                const nexmo = new NexmoClient({ debug: true }); // Debug on kiya taake console me exact library behavior dikhe
+                const nexmo = new NexmoClient({ debug: true });
                 nexmoClientRef.current = nexmo;
 
                 clientApp = await nexmo.createSession(response.data.token);
@@ -232,14 +221,14 @@ const bindDirectCallEvents = (call) => {
 
                         if (ringtoneAudioRef.current) {
                             ringtoneAudioRef.current.loop = true;
-                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone play error:", e));
+                            ringtoneAudioRef.current.play().catch(e => console.log("Ringtone error:", e));
                         }
 
                         bindDirectCallEvents(call);
                     }
                 });
 
-                // OUTBOUND CALL TRUCKING (YAHAN SE KOI BHI NAYA OUTBOUND LEG DIRECT DETECT HOGA)
+                // OUTBOUND CALLS DETECT
                 clientApp.on("call:created", (call) => {
                     console.log("Outbound Call Created globally on Client:", call);
                     activeCallRef.current = call;
@@ -258,70 +247,61 @@ const bindDirectCallEvents = (call) => {
         };
     }, []);
 
-    // OUTBOUND CALLS
+    // OUTBOUND CALL TRIGGER
     const makeCall = async (phoneNumber, clientName) => {
-    if (!voiceAppRef.current) {
-        console.warn("Voice server abhi tayyar nahi hai.");
-        return;
-    }
-    if (!phoneNumber) return;
-    if (callState.status !== 'idle') return;
+        if (!voiceAppRef.current) {
+            console.warn("Voice server is not ready yet.");
+            return;
+        }
+        if (!phoneNumber) return;
+        if (callState.status !== 'idle') return;
 
-    try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-        console.error("Mic Error:", err);
-        alert("Microphone permission is required to place calls!");
-        return;
-    }
+        try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            console.error("Mic Error:", err);
+            alert("Microphone permission is required to place calls!");
+            return;
+        }
 
-    const formattedNumber = phoneNumber.replace(/\D/g, '');
-    
-    // Sabse pehle local state ko ringing karein aur ringback tone chalayein
-    setCallState({ 
-        status: 'ringing', 
-        phoneNumber: formattedNumber, 
-        clientName: clientName || 'Customer', 
-        isMuted: false 
-    });
-    setShowCallWidget(true);
-
-    if (ringbackAudioRef.current) {
-        ringbackAudioRef.current.loop = true;
-        ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
-    }
-
-    try {
-        console.log(`Placing Outbound Call to: ${formattedNumber}`);
+        const formattedNumber = phoneNumber.replace(/\D/g, '');
         
-        // Vonage call routing setup
-        const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
-            number: formattedNumber
+        setCallState({ 
+            status: 'ringing', 
+            phoneNumber: formattedNumber, 
+            clientName: clientName || 'Customer', 
+            isMuted: false 
         });
-        
-        activeCallRef.current = call;
-        
-        // Events connect karein jo upar update kiye hain
-        bindDirectCallEvents(call);
+        setShowCallWidget(true);
 
-        // EXTRA SAFETY: Call object ke conversation level par direct listen karein
-        if (call.conversation) {
-            console.log("Binding to call.conversation events");
-            call.conversation.on('member:joined', (member) => {
-                console.log("Conversation Level Event: member:joined -> State:", member.state);
-                if (member.user.name !== 'tgp_portal_user') {
+        if (ringbackAudioRef.current) {
+            ringbackAudioRef.current.loop = true;
+            ringbackAudioRef.current.play().catch(e => console.log("Ringing sound play error:", e));
+        }
+
+        try {
+            console.log(`Placing Outbound Call to: ${formattedNumber}`);
+            
+            const call = await voiceAppRef.current.callServer(formattedNumber, 'phone', {
+                number: formattedNumber
+            });
+            
+            activeCallRef.current = call;
+            bindDirectCallEvents(call);
+
+            if (call.conversation) {
+                call.conversation.on('member:joined', () => {
                     stopAllSounds();
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
-                }
-            });
-        }
+                });
+            }
 
-    } catch (error) {
-        console.error("Failed to establish call:", error);
-        cleanUpCallState("Server call fail");
-    }
-};
+        } catch (error) {
+            console.error("Failed to establish call:", error);
+            cleanUpCallState("Server call fail");
+        }
+    };
 
     const answerCall = () => {
         if (activeCallRef.current && callState.status === 'incoming') {
