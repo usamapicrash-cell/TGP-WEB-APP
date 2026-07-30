@@ -85,7 +85,7 @@ export const CallProvider = ({ children }) => {
     const classifyStatus = (rawStatus) => {
         const s = (rawStatus || '').toLowerCase().trim();
 
-        const ringingSet = ['ringing', 'ring', 'started'];
+        const ringingSet = ['ringing', 'ring'];
         const activeSet = ['answered', 'connected', 'active', 'joined'];
         const terminalSet = [
             'busy', 'remote_busy', 'completed', 'cancelled', 'canceled',
@@ -110,11 +110,9 @@ export const CallProvider = ({ children }) => {
         document.body.appendChild(audioEl);
 
         try {
-            const pusherKey = '355c9972a93b7b6dc813';
-            const pusherCluster = 'ap2';
+            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
+            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
 
-            // 🔥 Ab silent-wrong-fallback nahi hai. Agar .env missing/purana build hai
-            // to yahan seedha error dikhega console mein (pehle chup-chaap galat key use ho rahi thi).
             if (!pusherKey || !pusherCluster) {
                 console.error(
                     "[Pusher Config Missing] VITE_PUSHER_APP_KEY / VITE_PUSHER_APP_CLUSTER .env mein set nahi hain, " +
@@ -131,7 +129,6 @@ export const CallProvider = ({ children }) => {
                     disableStats: true
                 });
 
-                // 🔥 Debug: confirm socket connects to the RIGHT app (key/cluster printed for verification)
                 try {
                     const pusherConn = echoInstanceRef.current.connector.pusher.connection;
                     pusherConn.bind('state_change', (states) => {
@@ -148,17 +145,32 @@ export const CallProvider = ({ children }) => {
                 if (!isMountedRef.current) return;
 
                 const rawStatus = (payload?.status || '').toLowerCase().trim();
-                console.log(`[Pusher Broadcast Captured] Status: "${rawStatus}"`, payload);
+                const direction = (payload?.direction || '').toLowerCase().trim();
+                console.log(`[Pusher Broadcast Captured] Status: "${rawStatus}" | Direction: "${direction}"`, payload);
 
                 const bucket = classifyStatus(rawStatus);
+
+                // 🔥 CRITICAL FIX:
+                // "inbound" direction webhook events yahan asal mein AGENT KE APNE browser
+                // leg ko represent karte hain (jab callServer() call hoti hai to Vonage
+                // agent ko bhi ek member ki tarah conversation mein "inbound" leg se auto-join
+                // karwa deta hai). Yeh CUSTOMER nahi hai — isliye is par "Ringing"/"Connected"
+                // dikhana galat hai. Sirf "outbound" leg hi asal customer ki call hai.
+                if (bucket === 'terminal') {
+                    // Terminal status kisi bhi direction se aaye, cleanup zaroor karo
+                    cleanUpCallState(`Pusher status: ${rawStatus} (${direction || 'unknown'})`);
+                    return;
+                }
+
+                if (direction && direction !== 'outbound') {
+                    console.log(`[Pusher] Ignored non-outbound leg status ("${direction}") - not the customer's call`);
+                    return;
+                }
 
                 if (bucket === 'ringing') {
                     setCallState(prev => (prev.status === 'idle' ? prev : { ...prev, status: 'ringing' }));
                 } else if (bucket === 'active') {
                     setCallState(prev => (prev.status === 'idle' ? prev : { ...prev, status: 'active' }));
-                } else if (bucket === 'terminal') {
-                    // 🔥 Terminal statuses instantly kill the widget
-                    cleanUpCallState(`Pusher status: ${rawStatus}`);
                 }
             };
 
