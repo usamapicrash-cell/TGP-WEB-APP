@@ -13,6 +13,20 @@ const EmailCustomer = ({ lead }) => {
     const fileInputRef = useRef(null);
     const iframeRef = useRef(null);
 
+    useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.data && event.data.frameHeight && iframeRef.current) {
+                iframeRef.current.style.height = `${event.data.frameHeight + 20}px`;
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, [selectedEmail]);
+    
     const [composeData, setComposeData] = useState({
         subject: `Update regarding Lead #${lead?.lead_number || ''}`,
         body: ""
@@ -39,9 +53,16 @@ const EmailCustomer = ({ lead }) => {
     }, [fetchEmails]);
 
     const handleIframeLoad = () => {
-        if (iframeRef.current && iframeRef.current.contentWindow) {
-            // Iframe ki height content ke mutabiq set hogi taaki iframe ka apna scroll khatam ho jaye
-            iframeRef.current.style.height = iframeRef.current.contentWindow.document.body.scrollHeight + 'px';
+        if (iframeRef.current && iframeRef.current.contentDocument) {
+            const doc = iframeRef.current.contentDocument;
+            // Body aur documentElement dono ka max height lein
+            const height = Math.max(
+                doc.body ? doc.body.scrollHeight : 0,
+                doc.documentElement ? doc.documentElement.scrollHeight : 0
+            );
+            if (height > 0) {
+                iframeRef.current.style.height = `${height + 20}px`; // 20px extra padding
+            }
         }
     };
 
@@ -190,32 +211,46 @@ const EmailCustomer = ({ lead }) => {
                         <div className="pt-3 border-top">
                             {/* iframe scrolling disabled, height content ke mutabiq manage ho rahi hai */}
                             <iframe
-                                ref={iframeRef}
-                                title="email-content"
-                                // srcDoc ke andar head aur base tag lazmi hai
-                                srcDoc={`
-                                    <html>
-                                        <head>
-                                            <base target="_blank">
-                                            <style>
-                                                body { margin: 0; font-family: sans-serif; }
-                                                img { max-width: 100%; height: auto; }
-                                            </style>
-                                        </head>
-                                        <body>
-                                            ${selectedEmail.html_body}
-                                        </body>
-                                    </html>
-                                `}
-                                onLoad={handleIframeLoad}
-                                scrolling="no"
-                                style={{
-                                    width: '100%',
-                                    border: 'none',
-                                    overflow: 'hidden',
-                                    display: 'block'
-                                }}
-                            />
+                            ref={iframeRef}
+                            key={selectedEmail?.id} // IMPORTANT: ID change hone par iframe clean re-render hoga
+                            title="email-content"
+                            srcDoc={`
+                                <!DOCTYPE html>
+                                <html>
+                                    <head>
+                                        <base target="_blank">
+                                        <style>
+                                            html, body { margin: 0; padding: 0; font-family: sans-serif; word-wrap: break-word; }
+                                            img { max-width: 100%; height: auto; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div id="email-body-content">
+                                            ${selectedEmail?.html_body || selectedEmail?.body || ''}
+                                        </div>
+                                        <script>
+                                            function sendHeight() {
+                                                var height = document.body.scrollHeight || document.documentElement.scrollHeight;
+                                                window.parent.postMessage({ frameHeight: height }, '*');
+                                            }
+                                            window.onload = sendHeight;
+                                            if (window.ResizeObserver) {
+                                                new ResizeObserver(sendHeight).observe(document.body);
+                                            }
+                                        </script>
+                                    </body>
+                                </html>
+                            `}
+                            onLoad={handleIframeLoad}
+                            scrolling="no"
+                            style={{
+                                width: '100%',
+                                border: 'none',
+                                overflow: 'hidden',
+                                display: 'block',
+                                minHeight: '100px' // Default min height taaki content bilkul gayab na ho
+                            }}
+                        />
                         </div>
                         
                         {selectedEmail.attachments?.length > 0 && (
