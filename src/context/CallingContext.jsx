@@ -37,6 +37,18 @@ export const CallProvider = ({ children }) => {
         return fallback;
     };
 
+    // Robust Status Extractor for Pusher & SDK objects
+    const extractStatus = (data) => {
+        if (!data) return '';
+        if (typeof data === 'string') return data.toLowerCase().trim();
+        
+        // Handle object structures
+        const statusVal = data.status || data.call_status || data.state || data.detail || 
+                          (data.payload && data.payload.status) || '';
+                          
+        return String(statusVal).toLowerCase().trim();
+    };
+
     useEffect(() => {
         isMountedRef.current = true;
 
@@ -56,7 +68,7 @@ export const CallProvider = ({ children }) => {
         isCleaningUpRef.current = true;
         callDirectionRef.current = null;
 
-        console.log(`[Call Cleanup] Executing -> Reason: ${reason}`);
+        console.log(`[Call Cleanup Executed] Reason: ${reason}`);
 
         if (activeCallRef.current) {
             try {
@@ -71,7 +83,7 @@ export const CallProvider = ({ children }) => {
                     activeCallRef.current.off('leg:status:update');
                 }
             } catch (e) {
-                console.log("Error unbinding call events:", e);
+                console.warn("Non-critical error unbinding events:", e);
             }
             activeCallRef.current = null;
         }
@@ -80,19 +92,18 @@ export const CallProvider = ({ children }) => {
             remoteAudioRef.current.srcObject = null;
         }
 
-        if (isMountedRef.current) {
-            setShowCallWidget(false);
-            setCallState({ 
-                status: 'idle', 
-                phoneNumber: null, 
-                clientName: null, 
-                isMuted: false 
-            });
-        }
+        // FORCE UI RESET
+        setShowCallWidget(false);
+        setCallState({ 
+            status: 'idle', 
+            phoneNumber: null, 
+            clientName: null, 
+            isMuted: false 
+        });
 
         setTimeout(() => {
             isCleaningUpRef.current = false;
-        }, 150);
+        }, 100);
     };
 
     const attachAudioStream = (call) => {
@@ -109,15 +120,7 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // Robust Status Parsing Helper for Webhook Payload Variations
-    const parseEventStatus = (data) => {
-        if (!data) return '';
-        if (typeof data === 'string') return data.toLowerCase();
-        const rawStatus = data.status || data.call_status || data.state || data.detail || (data.payload && data.payload.status) || '';
-        return String(rawStatus).toLowerCase().trim();
-    };
-
-    // Laravel Echo / Pusher Listener (Bulletproof Event Catching)
+    // Echo / Pusher Webhook Listener
     useEffect(() => {
         try {
             const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY || '355c9972a93b7b6dc813';
@@ -137,8 +140,9 @@ export const CallProvider = ({ children }) => {
             
             const handleCallStatusUpdate = (data) => {
                 if (!isMountedRef.current) return;
-                const status = parseEventStatus(data);
-                console.log(`[Pusher Broadcaster Incoming] Extracted Status: "${status}"`, data);
+                
+                const status = extractStatus(data);
+                console.log(`[Pusher Broadcast Received] Resolved Status: "${status}"`, data);
 
                 if (['ringing', 'ring'].includes(status)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
@@ -146,13 +150,14 @@ export const CallProvider = ({ children }) => {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 }
 
-                const endStates = [
+                // Disconnect / Terminal status list
+                const terminalStates = [
                     'completed', 'busy', 'remote_busy', 'cancelled', 
                     'timeout', 'ring_timeout', 'rejected', 'failed', 
                     'no-answer', 'unanswered', 'disconnected', 'declined', 'hangup', 'ok'
                 ];
 
-                if (endStates.includes(status)) {
+                if (terminalStates.includes(status)) {
                     cleanUpCallState(`Pusher Broadcast Status: ${status}`);
                 }
             };
@@ -176,13 +181,13 @@ export const CallProvider = ({ children }) => {
 
         const handleCallAnswered = () => {
             if (!isMountedRef.current) return;
-            console.log("[SDK Event] Call Answered & Media Connected");
+            console.log("[SDK Event] Call Answered");
             attachAudioStream(call);
             setCallState(prev => ({ ...prev, status: 'active' }));
         };
 
         const handleCallEnded = (reason) => {
-            cleanUpCallState(`SDK Call Event -> ${reason}`);
+            cleanUpCallState(`SDK Event -> ${reason}`);
         };
 
         try {
@@ -190,7 +195,7 @@ export const CallProvider = ({ children }) => {
 
             call.on('member:updated', (member) => {
                 if (!isMountedRef.current) return;
-                const state = parseEventStatus(member);
+                const state = extractStatus(member);
                 console.log(`[SDK member:updated] State: ${state}`);
 
                 if (['answered', 'joined', 'connected'].includes(state)) {
@@ -204,7 +209,7 @@ export const CallProvider = ({ children }) => {
 
             call.on('leg:status:update', (leg) => {
                 if (!isMountedRef.current) return;
-                const status = parseEventStatus(leg);
+                const status = extractStatus(leg);
                 console.log(`[SDK leg:status:update] Status: ${status}`);
 
                 if (['ringing'].includes(status)) {
@@ -222,7 +227,7 @@ export const CallProvider = ({ children }) => {
             call.on('sip:hangup', () => handleCallEnded('sip:hangup'));
 
         } catch (e) {
-            console.error("Failed to bind direct call events:", e);
+            console.error("Failed to bind call events:", e);
         }
     };
 
@@ -244,9 +249,7 @@ export const CallProvider = ({ children }) => {
                 if (!isMountedRef.current) return;
 
                 const handleIncomingCall = (member, call) => {
-                    if (callDirectionRef.current === 'outbound') {
-                        return;
-                    }
+                    if (callDirectionRef.current === 'outbound') return;
 
                     callDirectionRef.current = 'inbound';
                     const callObj = call || member;
