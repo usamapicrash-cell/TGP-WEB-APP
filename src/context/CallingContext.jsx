@@ -20,11 +20,13 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
-    const activeConversationUuidRef = useRef(null); // Explicit track ID
     const echoInstanceRef = useRef(null); 
     const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
     const isCleaningUpRef = useRef(false);
+    
+    // 🔥 Track if we are currently executing an outbound call
+    const isOutboundCallActiveRef = useRef(false);
 
     const safeString = (val, fallback = '') => {
         if (!val) return fallback;
@@ -39,7 +41,7 @@ export const CallProvider = ({ children }) => {
     const cleanUpCallState = (reason = "Unknown") => {
         if (isCleaningUpRef.current) return;
         isCleaningUpRef.current = true;
-        activeConversationUuidRef.current = null;
+        isOutboundCallActiveRef.current = false;
 
         console.log(`[Call Cleanup] -> ${reason}`);
 
@@ -85,7 +87,7 @@ export const CallProvider = ({ children }) => {
         }
     };
 
-    // SETUP ECHO / PUSHER REALTIME LISTENERS
+    // PUSHER REALTIME LISTENERS
     useEffect(() => {
         isMountedRef.current = true;
 
@@ -114,22 +116,20 @@ export const CallProvider = ({ children }) => {
                 if (!isMountedRef.current) return;
                 
                 const status = (payload?.status || '').toLowerCase().trim();
-                console.log(`[Pusher Broadcast Captured] Status: ${status}`, payload);
+                console.log(`[Pusher Broadcast] Status: ${status}`, payload);
 
-                // Update UI based on Webhook Push
                 if (['ringing', 'ring'].includes(status)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
                 } else if (['answered', 'connected', 'active'].includes(status)) {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 }
 
-                // Terminal / End status
                 if (['busy', 'remote_busy', 'completed', 'cancelled', 'failed', 'rejected', 'timeout', 'no-answer', 'hangup'].includes(status)) {
+                    // Only cleanup if it matches end of outbound or idle
                     cleanUpCallState(`Broadcast status: ${status}`);
                 }
             };
 
-            // Listen both with dot prefix and standard
             channel.listen('.CallStatusUpdated', handleCallStatusUpdate);
             channel.listen('CallStatusUpdated', handleCallStatusUpdate);
 
@@ -154,7 +154,6 @@ export const CallProvider = ({ children }) => {
 
             call.on('member:updated', (member) => {
                 const state = (member?.state || member?.status || '').toLowerCase();
-                console.log(`[SDK member:updated] state: ${state}`);
                 if (['answered', 'joined'].includes(state)) {
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
@@ -167,7 +166,6 @@ export const CallProvider = ({ children }) => {
 
             call.on('leg:status:update', (leg) => {
                 const status = (leg?.status || leg?.state || '').toLowerCase();
-                console.log(`[SDK leg:status] status: ${status}`);
                 if (status === 'ringing') {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
                 } else if (status === 'answered') {
@@ -201,6 +199,12 @@ export const CallProvider = ({ children }) => {
                 voiceAppRef.current = clientApp;   
 
                 const handleIncomingCall = (member, call) => {
+                    // 🔥 CRITICAL FIX: If we initiated an outbound call, ignore Vonage's ghost inbound leg
+                    if (isOutboundCallActiveRef.current) {
+                        console.log("[Vonage SDK] Ignored inbound leg because outbound call is active.");
+                        return;
+                    }
+
                     const callObj = call || member;
                     activeCallRef.current = callObj;
 
@@ -242,7 +246,9 @@ export const CallProvider = ({ children }) => {
         const formattedNumber = safeString(phoneNumber).replace(/\D/g, '');
         const targetDisplay = safeString(clientName || phoneNumber, 'Customer');
         
-        // Immediate UI feedback
+        // 🔥 Mark Outbound Active
+        isOutboundCallActiveRef.current = true;
+
         setCallState({ 
             status: 'calling', 
             phoneNumber: formattedNumber, 
@@ -257,9 +263,6 @@ export const CallProvider = ({ children }) => {
             });
             
             activeCallRef.current = call;
-            if (call?.conversation?.id) {
-                activeConversationUuidRef.current = call.conversation.id;
-            }
             bindDirectCallEvents(call);
 
         } catch (error) {
