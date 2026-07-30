@@ -110,8 +110,8 @@ export const CallProvider = ({ children }) => {
         document.body.appendChild(audioEl);
 
         try {
-            const pusherKey = import.meta.env.VITE_PUSHER_APP_KEY;
-            const pusherCluster = import.meta.env.VITE_PUSHER_APP_CLUSTER;
+            const pusherKey = '355c9972a93b7b6dc813';
+            const pusherCluster = 'ap2';
 
             if (!pusherKey || !pusherCluster) {
                 console.error(
