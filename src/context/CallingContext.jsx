@@ -20,12 +20,10 @@ export const CallProvider = ({ children }) => {
     const nexmoClientRef = useRef(null);   
     const voiceAppRef = useRef(null);      
     const activeCallRef = useRef(null);
+    const activeConversationUuidRef = useRef(null);
     const echoInstanceRef = useRef(null); 
     const remoteAudioRef = useRef(null);     
     const isMountedRef = useRef(true);
-    const isCleaningUpRef = useRef(false);
-    
-    // 🔥 Track if we are currently executing an outbound call
     const isOutboundCallActiveRef = useRef(false);
 
     const safeString = (val, fallback = '') => {
@@ -38,20 +36,20 @@ export const CallProvider = ({ children }) => {
         return fallback;
     };
 
+    // 🔥 Forceful Instant State Reset
     const cleanUpCallState = (reason = "Unknown") => {
-        if (isCleaningUpRef.current) return;
-        isCleaningUpRef.current = true;
-        isOutboundCallActiveRef.current = false;
+        console.log(`[Call Cleanup Triggered] -> Reason: ${reason}`);
 
-        console.log(`[Call Cleanup] -> ${reason}`);
+        isOutboundCallActiveRef.current = false;
+        activeConversationUuidRef.current = null;
 
         if (activeCallRef.current) {
             try {
-                if (typeof activeCallRef.current.off === 'function') {
-                    activeCallRef.current.off();
-                }
+                if (typeof activeCallRef.current.hangUp === 'function') activeCallRef.current.hangUp().catch(() => {});
+                else if (typeof activeCallRef.current.hangup === 'function') activeCallRef.current.hangup();
+                else if (typeof activeCallRef.current.reject === 'function') activeCallRef.current.reject();
             } catch (e) {
-                console.warn("Error unbinding events:", e);
+                console.warn("Call object disconnect exception:", e);
             }
             activeCallRef.current = null;
         }
@@ -60,6 +58,7 @@ export const CallProvider = ({ children }) => {
             remoteAudioRef.current.srcObject = null;
         }
 
+        // Direct React State Reset
         setShowCallWidget(false);
         setCallState({ 
             status: 'idle', 
@@ -67,10 +66,6 @@ export const CallProvider = ({ children }) => {
             clientName: null, 
             isMuted: false 
         });
-
-        setTimeout(() => {
-            isCleaningUpRef.current = false;
-        }, 100);
     };
 
     const attachAudioStream = (call) => {
@@ -115,18 +110,18 @@ export const CallProvider = ({ children }) => {
             const handleCallStatusUpdate = (payload) => {
                 if (!isMountedRef.current) return;
                 
-                const status = (payload?.status || '').toLowerCase().trim();
-                console.log(`[Pusher Broadcast] Status: ${status}`, payload);
+                const rawStatus = (payload?.status || '').toLowerCase().trim();
+                console.log(`[Pusher Broadcast Captured] Status: "${rawStatus}"`, payload);
 
-                if (['ringing', 'ring'].includes(status)) {
+                if (['ringing', 'ring'].includes(rawStatus)) {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
-                } else if (['answered', 'connected', 'active'].includes(status)) {
+                } else if (['answered', 'connected', 'active'].includes(rawStatus)) {
                     setCallState(prev => ({ ...prev, status: 'active' }));
                 }
 
-                if (['busy', 'remote_busy', 'completed', 'cancelled', 'failed', 'rejected', 'timeout', 'no-answer', 'hangup'].includes(status)) {
-                    // Only cleanup if it matches end of outbound or idle
-                    cleanUpCallState(`Broadcast status: ${status}`);
+                // 🔥 Terminal statuses instantly kill the widget
+                if (['busy', 'remote_busy', 'completed', 'cancelled', 'failed', 'rejected', 'timeout', 'no-answer', 'hangup'].includes(rawStatus)) {
+                    cleanUpCallState(`Pusher status: ${rawStatus}`);
                 }
             };
 
@@ -154,6 +149,7 @@ export const CallProvider = ({ children }) => {
 
             call.on('member:updated', (member) => {
                 const state = (member?.state || member?.status || '').toLowerCase();
+                console.log(`[SDK member:updated] state: ${state}`);
                 if (['answered', 'joined'].includes(state)) {
                     attachAudioStream(call);
                     setCallState(prev => ({ ...prev, status: 'active' }));
@@ -166,6 +162,7 @@ export const CallProvider = ({ children }) => {
 
             call.on('leg:status:update', (leg) => {
                 const status = (leg?.status || leg?.state || '').toLowerCase();
+                console.log(`[SDK leg:status] status: ${status}`);
                 if (status === 'ringing') {
                     setCallState(prev => ({ ...prev, status: 'ringing' }));
                 } else if (status === 'answered') {
@@ -199,9 +196,9 @@ export const CallProvider = ({ children }) => {
                 voiceAppRef.current = clientApp;   
 
                 const handleIncomingCall = (member, call) => {
-                    // 🔥 CRITICAL FIX: If we initiated an outbound call, ignore Vonage's ghost inbound leg
+                    // 🔥 Ignore Vonage's secondary inbound leg when making an outbound call
                     if (isOutboundCallActiveRef.current) {
-                        console.log("[Vonage SDK] Ignored inbound leg because outbound call is active.");
+                        console.log("[Vonage SDK] Ignored inbound leg (Outbound is active)");
                         return;
                     }
 
@@ -246,7 +243,6 @@ export const CallProvider = ({ children }) => {
         const formattedNumber = safeString(phoneNumber).replace(/\D/g, '');
         const targetDisplay = safeString(clientName || phoneNumber, 'Customer');
         
-        // 🔥 Mark Outbound Active
         isOutboundCallActiveRef.current = true;
 
         setCallState({ 
@@ -263,6 +259,9 @@ export const CallProvider = ({ children }) => {
             });
             
             activeCallRef.current = call;
+            if (call?.conversation?.id) {
+                activeConversationUuidRef.current = call.conversation.id;
+            }
             bindDirectCallEvents(call);
 
         } catch (error) {
@@ -285,18 +284,10 @@ export const CallProvider = ({ children }) => {
         }
     };
 
+    // 🔥 Hard End Call (Instant UI Dismiss + Backend Sync)
     const endCall = () => {
-        const call = activeCallRef.current;
-        cleanUpCallState("User clicked end call");
-
-        if (!call) return;
-        try {
-            if (typeof call.hangUp === 'function') call.hangUp().catch(() => {});
-            else if (typeof call.hangup === 'function') call.hangup();
-            else if (typeof call.reject === 'function') call.reject();
-        } catch (e) {
-            console.log('End call error:', e);
-        }
+        console.log("[User Clicked End Call]");
+        cleanUpCallState("User clicked end call button");
     };
 
     const toggleMute = () => {
