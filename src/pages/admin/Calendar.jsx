@@ -9,13 +9,13 @@ import api from '../../api/axios';
 
 const calendarStyles = `
   .fc .fc-toolbar { display: none; } 
-  .fc .fc-view-harness { background: #fff; border-radius: 0 0 15px 15px; min-height: 600px; }
+  .fc .fc-view-harness { background: #fff; border-radius: 0 0 12px 12px; min-height: 550px; overflow-x: auto; }
   .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #f8f9fa !important; }
-  .fc .fc-col-header-cell { padding: 10px 0; background: #fff; font-weight: 700; color: #2b3a67; font-size: 13px; }
+  .fc .fc-col-header-cell { padding: 8px 0; background: #fff; font-weight: 700; color: #2b3a67; font-size: 12px; }
   
-  /* Half-hour slot height adjusted for better visibility on small screens */
-  .fc .fc-timegrid-slot { height: 45px !important; border-bottom: 1px solid #f8f9fa !important; }
-  .fc .fc-timegrid-slot-label { vertical-align: middle; color: #adb5bd; font-size: 11px; border: none !important; }
+  /* Half-hour slot height adjusted for mobile & desktop */
+  .fc .fc-timegrid-slot { height: 40px !important; border-bottom: 1px solid #f8f9fa !important; }
+  .fc .fc-timegrid-slot-label { vertical-align: middle; color: #adb5bd; font-size: 10px; border: none !important; }
   
   .fc-v-event { border: none !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important; background: transparent !important; }
   
@@ -25,9 +25,15 @@ const calendarStyles = `
   .refresh-btn { transition: all 0.2s ease; border: 1px solid #eee !important; width: 32px; height: 32px; }
   .refresh-btn:hover { background-color: #f8f9fa !important; transform: rotate(15deg); }
 
-  /* Custom Scrollbar for cleaner look */
-  .fc-scroller::-webkit-scrollbar { width: 4px; }
+  /* Custom Scrollbars */
+  .fc-scroller::-webkit-scrollbar { width: 4px; height: 4px; }
   .fc-scroller::-webkit-scrollbar-thumb { background: #e9ecef; border-radius: 10px; }
+
+  @media (max-width: 576px) {
+    .fc .fc-col-header-cell { font-size: 11px; }
+    .fc .fc-timegrid-slot-label { font-size: 9px; }
+    .fc-scroller { overflow-x: auto !important; }
+  }
 `;
 
 const AdminCalendar = () => {
@@ -90,13 +96,13 @@ const AdminCalendar = () => {
     };
 
     return (
-        <div className="p-3 bg-light min-vh-100">
+        <div className="p-2 p-md-3 bg-light min-vh-100">
             <style>{calendarStyles}</style>
             
-            {/* Minimal Header */}
+            {/* Header */}
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                    <h4 className="fw-bold mb-0 text-dark">Calendar</h4>
+                    <h4 className="fw-bold mb-0 text-dark fs-5 fs-md-4">Calendar</h4>
                     <p className="text-muted mb-0" style={{ fontSize: '11px' }}>TGP Scheduling Portal</p>
                 </div>
                 <button 
@@ -109,34 +115,54 @@ const AdminCalendar = () => {
             </div>
 
             <div className="card border-0 shadow-sm overflow-hidden" style={{ borderRadius: '12px' }}>
-                {/* Custom Compact Toolbar */}
-                <div className="d-flex flex-wrap justify-content-between align-items-center p-2 gap-2 border-bottom bg-white">
-                    <div className="d-flex align-items-center gap-1">
-                        <button className="btn btn-xs btn-outline-light text-dark border-0" onClick={() => handleNav('prev')}><i className="bi bi-chevron-left"></i></button>
-                        <button className="btn btn-xs btn-outline-light text-dark border-0" onClick={() => handleNav('next')}><i className="bi bi-chevron-right"></i></button>
-                        <button className="btn btn-sm fw-bold px-2 border-0 text-primary" onClick={() => handleNav('today')} style={{ fontSize: '12px' }}>Today</button>
+                {/* Responsive Custom Toolbar */}
+                <div className="d-flex flex-column flex-sm-row justify-content-between align-items-center p-2 gap-2 border-bottom bg-white">
+                    
+                    {/* Left: Prev/Next/Today Navigation */}
+                    <div className="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-1">
+                        <div className="d-flex align-items-center gap-1">
+                            <button className="btn btn-xs btn-outline-light text-dark border-0 p-1" onClick={() => handleNav('prev')}>
+                                <i className="bi bi-chevron-left"></i>
+                            </button>
+                            <button className="btn btn-xs btn-outline-light text-dark border-0 p-1" onClick={() => handleNav('next')}>
+                                <i className="bi bi-chevron-right"></i>
+                            </button>
+                            <button className="btn btn-sm fw-bold px-2 border-0 text-primary" onClick={() => handleNav('today')} style={{ fontSize: '12px' }}>
+                                Today
+                            </button>
+                        </div>
+                        
+                        {/* Title inside mobile nav row for space optimization */}
+                        <span className="fw-bold text-dark d-sm-none text-end text-truncate" style={{ fontSize: '13px', maxWidth: '150px' }}>
+                            {currentDateTitle}
+                        </span>
                     </div>
 
-                    <span className="fw-bold text-dark text-center" style={{ fontSize: '14px', flex: 1 }}>{currentDateTitle}</span>
+                    {/* Middle: Title (Desktop view) */}
+                    <span className="fw-bold text-dark text-center d-none d-sm-block text-truncate" style={{ fontSize: '14px', flex: 1 }}>
+                        {currentDateTitle}
+                    </span>
 
-                    <div className="d-flex align-items-center gap-2">
-                        <div className="btn-group bg-light p-1 rounded-2 d-none d-md-flex">
-                            {['Week', 'Day', 'List'].map((label) => {
-                                const viewMap = { Week: 'timeGridWeek', Day: 'timeGridDay', List: 'listWeek' };
-                                const isActive = viewType === viewMap[label];
-                                return (
-                                    <button 
-                                        key={label}
-                                        className={`btn btn-sm border-0 px-2 py-0 ${isActive ? 'bg-white shadow-sm fw-bold text-dark' : 'text-muted'}`}
-                                        style={{ fontSize: '11px' }}
-                                        onClick={() => handleViewChange(viewMap[label])}
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
+                    {/* Right: View switcher & Refresh */}
+                    <div className="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-2">
+                        <div className="btn-group bg-light p-1 rounded-2 flex-grow-1 flex-sm-grow-0">
+                            {[
+                                { label: 'Week', view: 'timeGridWeek' },
+                                { label: 'Day', view: 'timeGridDay' },
+                                { label: 'List', view: 'listWeek' }
+                            ].map(({ label, view }) => (
+                                <button 
+                                    key={label}
+                                    className={`btn btn-sm border-0 px-2 py-1 flex-fill ${viewType === view ? 'bg-white shadow-sm fw-bold text-dark' : 'text-muted'}`}
+                                    style={{ fontSize: '11px' }}
+                                    onClick={() => handleViewChange(view)}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
-                        <button onClick={fetchAllVisits} disabled={loading} className="btn btn-sm bg-white refresh-btn rounded-circle d-flex align-items-center justify-content-center">
+
+                        <button onClick={fetchAllVisits} disabled={loading} className="btn btn-sm bg-white refresh-btn rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
                             <i className={`bi bi-arrow-clockwise ${loading ? 'spin-icon text-primary' : 'text-muted'}`}></i>
                         </button>
                     </div>
@@ -149,7 +175,7 @@ const AdminCalendar = () => {
                     allDaySlot={false}
                     slotMinTime="08:00:00"
                     slotMaxTime="20:00:00"
-                    slotDuration="00:30:00" // 30 Minutes Space
+                    slotDuration="00:30:00"
                     headerToolbar={false}
                     events={events}
                     eventContent={(info) => (
@@ -165,15 +191,15 @@ const AdminCalendar = () => {
                                 {info.event.title}
                             </div>
 
-                            <div className="text-dark text-truncate lh-1 mt-2" style={{ fontSize: '11px' }}>
+                            <div className="text-dark text-truncate lh-1 mt-1" style={{ fontSize: '10px' }}>
                                 {info.event.extendedProps.clientName}
                             </div>
 
-                            <div className="mt-1">
-                                <div className="text-muted text-truncate lh-sm" style={{ fontSize: '10px' }}>
+                            <div className="mt-1 d-none d-sm-block">
+                                <div className="text-muted text-truncate lh-sm" style={{ fontSize: '9px' }}>
                                     <i className="bi bi-person me-1"></i>{info.event.extendedProps.glazier}
                                 </div>
-                                <div className="text-muted text-truncate lh-sm" style={{ fontSize: '10px' }}>
+                                <div className="text-muted text-truncate lh-sm" style={{ fontSize: '9px' }}>
                                     <i className="bi bi-geo-alt me-1"></i>{info.event.extendedProps.location}
                                 </div>
                             </div>

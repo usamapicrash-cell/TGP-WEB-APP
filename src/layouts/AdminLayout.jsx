@@ -130,7 +130,7 @@ const AdminLayout = () => {
                             <Link 
                                 key={item.path} 
                                 to={item.path} 
-                                className={`nav-link mb-2 d-flex align-items-center rounded ${isActive ? 'active' : ''}`}
+                                className={`nav-link mb-0 d-flex align-items-center rounded ${isActive ? 'active' : ''}`}
                                 style={{
                                     padding: '12px 15px', 
                                     fontSize: '0.8rem', 

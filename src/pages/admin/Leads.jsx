@@ -122,13 +122,14 @@ const AdminLeads = () => {
             ) : (
                 <>
                     {/* Header Section */}
-                    <div className="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3 mb-4">
+                    <div className="d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-3 mb-4">
                         <div>
                             <h4 className="fw-bold mb-1">Leads & Quotes</h4>
                             <p className="text-muted small mb-0">Manage incoming leads and convert them to active jobs</p>
                         </div>
 
-                        <div className="d-flex w-100 w-sm-auto gap-2"> 
+                        {/* Buttons Container: Mobile par full width (w-100), Desktop par right aligned (ms-sm-auto / justify-content-sm-end) */}
+                        <div className="d-flex w-100 w-sm-auto justify-content-end justify-content-sm-end align-items-center gap-2 ms-sm-auto"> 
                             <button 
                                 className="btn btn-outline-secondary flex-fill flex-sm-grow-0 px-3" 
                                 style={{ borderRadius: '8px' }}
@@ -187,7 +188,7 @@ const AdminLeads = () => {
                                 </div>
                             </div>
                             <div className="col-6 col-md-3">
-                                <select className="form-select border-0 bg-light small shadow-none" onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+                                <select className="form-control border-0 bg-light small shadow-none" onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
                                     <option value="">All Statuses</option>
                                     <option value="lead">Lead</option>
                                     <option value="quote">Quote</option>
@@ -195,7 +196,7 @@ const AdminLeads = () => {
                                 </select>
                             </div>
                             <div className="col-6 col-md-3">
-                                <select className="form-select border-0 bg-light small shadow-none" onChange={(e) => { setSource(e.target.value); setPage(1); }}>
+                                <select className="form-control border-0 bg-light small shadow-none" onChange={(e) => { setSource(e.target.value); setPage(1); }}>
                                     <option value="">All Sources</option>
                                     <option value="Website">Website</option>
                                     <option value="Call">Call</option>

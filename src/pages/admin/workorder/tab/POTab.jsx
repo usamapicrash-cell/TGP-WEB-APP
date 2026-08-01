@@ -8,14 +8,14 @@ import Swal from 'sweetalert2';
 
 const POTab = ({ lead, leadId }) => {
     const [showEmailModal, setShowEmailModal] = useState(false);
-    const [suppliers, setSuppliers] = useState([]); // Suppliers list fetch karne ke liye
+    const [suppliers, setSuppliers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [selectedPO, setSelectedPO] = useState(null);
     const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [editingPO, setEditingPO] = useState(null); // Add this state
-    const [updatingStatus, setUpdatingStatus] = useState(null); // Current PO being updated
+    const [editingPO, setEditingPO] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(null);
 
     const fetchPOs = async () => {
         try {
@@ -50,75 +50,68 @@ const POTab = ({ lead, leadId }) => {
     };
 
     const handleEdit = (po) => {
-        setEditingPO(po); // PO ka data state mein dalein
-        setShowModal(true); // CreatePOModal hi open karein
+        setEditingPO(po);
+        setShowModal(true);
     };
 
-    // Jab modal close ho to editingPO ko clear kar dein
     const handleCloseModal = () => {
         setShowModal(false);
         setEditingPO(null);
     };
 
     const handleStatusUpdate = async (po) => {
-    const { value: newStatus } = await Swal.fire({
-        title: 'Update PO Status',
-        input: 'select',
-        inputOptions: {
-            draft: 'Draft',
-            pending: 'Pending',
-            approved: 'Approved',
-            delivered: 'Delivered',
-            cancelled: 'Cancelled'
-        },
-        inputValue: po.status,
-        showCancelButton: true,
-        reverseButtons: true, // FIX 1: Cancel button ko pehle lane ke liye
-        confirmButtonText: 'Update Status',
-        cancelButtonText: 'Cancel',
-        
-        // FIX 2: Aapke Theme (#2b3a67) se matching styles
-        customClass: {
-            container: 'my-swal-container',
-            popup: 'border-0 shadow-lg',
-            title: 'fw-bold fs-5 pt-4',
-            input: 'form-select small shadow-none mx-auto w-75', // Bootstrap select style
-            confirmButton: 'btn px-5 fw-bold text-white order-2',
-            cancelButton: 'btn btn-outline-secondary px-4 fw-bold order-1',
-            actions: 'pb-4 pt-2 d-flex justify-content-center gap-3'
-        },
-        didOpen: () => {
-            // Apply theme color directly to confirm button
-            const confirmBtn = Swal.getConfirmButton();
-            confirmBtn.style.backgroundColor = '#2b3a67';
-            confirmBtn.style.borderRadius = '8px';
-            
-            // Cancel button style match
-            const cancelBtn = Swal.getCancelButton();
-            cancelBtn.style.borderRadius = '8px';
-        },
-        buttonsStyling: false, 
-    });
+        const { value: newStatus } = await Swal.fire({
+            title: 'Update PO Status',
+            input: 'select',
+            inputOptions: {
+                draft: 'Draft',
+                pending: 'Pending',
+                approved: 'Approved',
+                delivered: 'Delivered',
+                cancelled: 'Cancelled'
+            },
+            inputValue: po.status,
+            showCancelButton: true,
+            reverseButtons: true,
+            confirmButtonText: 'Update Status',
+            cancelButtonText: 'Cancel',
+            customClass: {
+                container: 'my-swal-container',
+                popup: 'border-0 shadow-lg rounded-4 w-90 w-sm-auto',
+                title: 'fw-bold fs-5 pt-4',
+                input: 'form-select small shadow-none mx-auto w-100 w-sm-75',
+                confirmButton: 'btn px-4 py-2 fw-bold text-white order-2',
+                cancelButton: 'btn btn-outline-secondary px-4 py-2 fw-bold order-1',
+                actions: 'pb-4 pt-2 d-flex justify-content-center gap-2 gap-sm-3'
+            },
+            didOpen: () => {
+                const confirmBtn = Swal.getConfirmButton();
+                confirmBtn.style.backgroundColor = '#2b3a67';
+                confirmBtn.style.borderRadius = '8px';
+                
+                const cancelBtn = Swal.getCancelButton();
+                cancelBtn.style.borderRadius = '8px';
+            },
+            buttonsStyling: false, 
+        });
 
-    if (newStatus && newStatus !== po.status) {
-        try {
-            // Loading state start
-            const response = await api.patch(`/purchase-orders/${po.id}/status`, { 
-                status: newStatus 
-            });
+        if (newStatus && newStatus !== po.status) {
+            try {
+                const response = await api.patch(`/purchase-orders/${po.id}/status`, { 
+                    status: newStatus 
+                });
 
-            // Update UI locally
-            setPurchaseOrders(prev => 
-                prev.map(item => item.id === po.id ? { ...item, status: response.data.status } : item)
-            );
-            
-            toast.success(`PO status updated to ${newStatus}`);
-        } catch (error) {
-            console.error(error);
-            toast.error(error.response?.data?.message || "Failed to update status");
+                setPurchaseOrders(prev => 
+                    prev.map(item => item.id === po.id ? { ...item, status: response.data.status } : item)
+                );
+                
+                toast.success(`PO status updated to ${newStatus}`);
+            } catch (error) {
+                console.error(error);
+                toast.error(error.response?.data?.message || "Failed to update status");
+            }
         }
-    }
-};
+    };
 
     const handleDelete = async (id) => {
         const result = await Swal.fire({
@@ -128,8 +121,9 @@ const POTab = ({ lead, leadId }) => {
             showCancelButton: true,
             confirmButtonText: 'Yes, delete it!',
             customClass: {
-                confirmButton: 'btn btn-danger px-4 py-2 shadow-none',
-                cancelButton: 'btn btn-light px-4 py-2 ms-2 shadow-none'
+                popup: 'border-0 shadow-lg rounded-4',
+                confirmButton: 'btn btn-danger px-4 py-2 shadow-none rounded-3',
+                cancelButton: 'btn btn-light px-4 py-2 ms-2 shadow-none rounded-3'
             },
             buttonsStyling: false
         });
@@ -137,18 +131,14 @@ const POTab = ({ lead, leadId }) => {
         if (result.isConfirmed) {
             try {
                 await api.delete(`/purchase-orders/${id}`);
-                
-                // State update karein taaki row foran remove ho jaye
                 setPurchaseOrders(prev => prev.filter(po => po.id !== id));
                 toast.success("Purchase Order deleted");
             } catch (error) {
-                // FIX: Agar backend se 422 error message aaya hai toh wo dikhao, warna default message
                 const errorMsg = error.response?.data?.message || "Failed to delete PO";
                 toast.error(errorMsg);
             }
         }
     };
-
 
     const handleAddPayment = async (po) => {
         const remainingBalance = po.total - (po.paid_amount || 0);
@@ -156,7 +146,7 @@ const POTab = ({ lead, leadId }) => {
         const { value: formValues } = await Swal.fire({
             title: 'Add Payment',
             html: `
-                <div class="text-start px-3">
+                <div class="text-start px-1 px-sm-3">
                     <label class="small fw-bold text-muted mb-1">REMAINING BALANCE: $${remainingBalance.toLocaleString()}</label>
                     <input id="swal-amount" type="number" class="form-control mb-3 shadow-none" placeholder="Enter amount" value="${remainingBalance}">
                     
@@ -176,13 +166,13 @@ const POTab = ({ lead, leadId }) => {
             customClass: {
                 popup: 'border-0 shadow-lg rounded-4',
                 title: 'fw-bold fs-5 pt-4',
-                confirmButton: 'btn px-4 fw-bold text-white',
-                cancelButton: 'btn btn-light px-4 fw-bold',
-                actions: 'pb-4 pt-2 d-flex justify-content-center gap-3'
+                confirmButton: 'btn px-4 py-2 fw-bold text-white',
+                cancelButton: 'btn btn-light px-4 py-2 fw-bold',
+                actions: 'pb-4 pt-2 d-flex justify-content-center gap-2 gap-sm-3'
             },
             didOpen: () => {
                 const confirmBtn = Swal.getConfirmButton();
-                confirmBtn.style.backgroundColor = '#2b3a67'; // Your theme color
+                confirmBtn.style.backgroundColor = '#2b3a67';
                 confirmBtn.style.borderRadius = '8px';
                 Swal.getCancelButton().style.borderRadius = '8px';
             },
@@ -207,7 +197,6 @@ const POTab = ({ lead, leadId }) => {
                 setLoading(true);
                 const response = await api.post(`/purchase-orders/${po.id}/payment`, formValues);
                 
-                // Update local state locally
                 setPurchaseOrders(prev => prev.map(item => 
                     item.id === po.id ? { 
                         ...item, 
@@ -225,27 +214,27 @@ const POTab = ({ lead, leadId }) => {
             }
         }
     };
+
     // --- TABLE SKELETON COMPONENT ---
     const TableSkeleton = () => {
         return (
             <>
                 {[...Array(5)].map((_, i) => (
                     <tr key={i} className="skeleton-row">
-                        <td className="ps-4">
+                        <td className="ps-3 ps-sm-4">
                             <div className="skeleton-box" style={{ width: '80px', height: '18px', borderRadius: '4px' }}></div>
                         </td>
                         <td>
-                            <div className="skeleton-box mb-1" style={{ width: '140px', height: '16px' }}></div>
+                            <div className="skeleton-box mb-1" style={{ width: '120px', height: '16px' }}></div>
                         </td>
                         <td><div className="skeleton-box" style={{ width: '70px', height: '18px' }}></div></td>
                         <td>
                             <div className="skeleton-box mb-1" style={{ width: '60px', height: '14px' }}></div>
                         </td>
-                        <td><div className="skeleton-box" style={{ width: '90px', height: '22px', borderRadius: '12px' }}></div></td>
-                        <td><div className="skeleton-box" style={{ width: '40px', height: '18px' }}></div></td>
+                        <td><div className="skeleton-box" style={{ width: '80px', height: '22px', borderRadius: '12px' }}></div></td>
+                        <td><div className="skeleton-box" style={{ width: '80px', height: '18px' }}></div></td>
                         <td className="text-center">
-                            <div className="d-flex justify-content-center gap-2">
-                                <div className="skeleton-box" style={{ width: '24px', height: '24px', borderRadius: '50%' }}></div>
+                            <div className="d-flex justify-content-center">
                                 <div className="skeleton-box" style={{ width: '24px', height: '24px', borderRadius: '50%' }}></div>
                             </div>
                         </td>
@@ -255,26 +244,31 @@ const POTab = ({ lead, leadId }) => {
         );
     };
 
-
     return (
-        <div className="animate__animated animate__fadeIn">
+        <div className="animate__animated animate__fadeIn px-1 px-sm-0">
             {/* Header Section */}
-            <div className="d-flex justify-content-between align-items-center mb-3">
+            <div className="d-flex flex-column flex-sm-row justify-content-between align-items-stretch align-items-sm-center gap-3 mb-3">
                 <div>
                     <h6 className="fw-bold mb-1">Purchase Orders</h6>
                     <p className="text-muted small mb-0">Manage supplier procurement and costs</p>
                 </div>
-                <div className="d-flex gap-2">
+                
+                {/* Buttons Container: Mobile par full width, SM/Desktop par right aligned (ms-auto) */}
+                <div className="d-flex w-100 w-sm-auto justify-content-end align-items-center gap-2 ms-auto">
                     <button 
                         onClick={() => setShowEmailModal(true)} 
-                        className="btn btn-outline-primary d-flex align-items-center gap-2 px-3 py-2" 
+                        className="btn btn-outline-primary flex-grow-1 flex-sm-grow-0 d-flex align-items-center justify-content-center gap-2 px-3 py-2 fw-semibold" 
                         style={{ borderRadius: '6px', fontSize: '0.85rem' }}
                     >
                         <i className="bi bi-envelope"></i>
                         <span>Get Pricing</span>
                     </button>
                     
-                    <button onClick={() => setShowModal(true)} className="btn btn-primary d-flex align-items-center gap-2 px-3 py-2" style={{ backgroundColor: '#2b3a67', border: 'none', borderRadius: '6px', fontSize: '0.85rem' }}>
+                    <button 
+                        onClick={() => setShowModal(true)} 
+                        className="btn btn-primary flex-grow-1 flex-sm-grow-0 d-flex align-items-center justify-content-center gap-2 px-3 py-2 fw-semibold" 
+                        style={{ backgroundColor: '#2b3a67', borderColor: '#2b3a67', borderRadius: '6px', fontSize: '0.85rem' }}
+                    >
                         <i className="bi bi-plus-lg"></i>
                         <span>Create PO</span>
                     </button>
@@ -282,132 +276,117 @@ const POTab = ({ lead, leadId }) => {
             </div>
 
             {/* Table Container */}
-            <div className="card border-0 shadow-sm" style={{ borderRadius: '15px' }}>
-                <div className="table-responsivee">
-                    <table className="table table-hover align-middle mb-0">
+            <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0 text-nowrap">
                         <thead className="bg-light border-bottom">
                             <tr>
-                                <th className="ps-4 border-0 text-muted fw-semibold bg-transparent">PO #</th>
+                                <th className="ps-3 ps-sm-4 border-0 text-muted small fw-semibold bg-transparent">PO #</th>
                                 <th className="border-0 text-muted small fw-semibold bg-transparent">Supplier</th>
                                 <th className="border-0 text-muted small fw-semibold bg-transparent">Cost</th>
                                 <th className="border-0 text-muted small fw-semibold bg-transparent">Payment Status</th>
                                 <th className="border-0 text-muted small fw-semibold bg-transparent">Status</th>
                                 <th className="border-0 text-muted small fw-semibold bg-transparent">Date</th>
-                                <th className="border-0 text-muted small fw-semibold text-center bg-transparent">Actions</th>
+                                <th className="border-0 text-muted small fw-semibold text-center bg-transparent pe-3 pe-sm-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                             {loading ? (
+                            {loading ? (
                                 <TableSkeleton />
                             ) : purchaseOrders.length === 0 ? (
-                                <tr><td colSpan="7" className="text-center py-5 text-muted small">No purchase orders found for this lead.</td></tr>
+                                <tr>
+                                    <td colSpan="7" className="text-center py-4 py-sm-5 text-muted small">
+                                        <i className="bi bi-file-earmark-x text-muted opacity-25 d-block mb-2" style={{ fontSize: '2rem' }}></i>
+                                        No purchase orders found for this lead.
+                                    </td>
+                                </tr>
                             ) : purchaseOrders.map((po) => (
                                 <tr key={po.id} className="border-top">
-                                    <td className="ps-4 fw-bold text-primary">{po.po_number}</td>
+                                    <td className="ps-3 ps-sm-4 fw-bold text-primary">{po.po_number}</td>
                                     <td>
                                         <div className="fw-bold text-dark small">{po.supplier?.name}</div>
-                                        <div className="text-muted" style={{fontSize: '0.7rem'}}>{po.items_count || po.items?.length} items</div>
+                                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>{po.items_count || po.items?.length || 0} items</div>
                                     </td>
                                     <td className="fw-bold text-dark">${parseFloat(po.total).toLocaleString()}</td>
                                     <td>
                                         <span className={`small fw-bold ${po.payment_status === 'paid' ? 'text-success' : 'text-warning'}`}>
                                             {po.payment_status?.toUpperCase()}
                                         </span>
-                                        <div className="text-muted" style={{fontSize: '0.7rem'}}>${po.paid_amount || 0} paid</div>
+                                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>${po.paid_amount || 0} paid</div>
                                     </td>
                                     <td>
                                         <span className={`badge ${getStatusColor(po.status)} border-0 fw-bold text-uppercase`} style={{ fontSize: '0.6rem', padding: '0.5em 0.8em' }}>
                                             {po.status}
                                         </span>
                                     </td>
-                                    {/*<td className="text-muted small">
-                                        <i className="bi bi-card-image me-1"></i>
-                                        {po.drawing_data ? (Array.isArray(po.drawing_data) ? po.drawing_data.length : 1) : 0}
-                                    </td>*/}
                                     <td className="text-muted small">
                                         <i className="bi bi-calendar me-1"></i>
                                         {new Date(po.created_at).toLocaleDateString()}
                                     </td>
-                                    <td className="text-center px-4">
-                                        <div className="d-flex justify-content-center gap-3">
-                                           <div className="dropdown">
-                                                <button 
-                                                    className="btn btn-link btn-sm text-muted shadow-none p-0" 
-                                                    type="button" 
-                                                    data-bs-toggle="dropdown" 
-                                                    aria-expanded="false"
-                                                >
-                                                    <i className="bi bi-three-dots-vertical fs-5"></i>
-                                                </button>
-                                                <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: '10px', fontSize: '14px' }}>
-                                                    {/* VIEW OPTION */}
-                                                    <li>
-                                                        <button className="dropdown-item py-2" onClick={() => handlePreview(po)}>
-                                                            <i className="bi bi-eye me-2 text-muted"></i> View Details
-                                                        </button>
-                                                    </li>
-
-                                                    {/* EDIT OPTION */}
-                                                    <li>
-                                                        <button className="dropdown-item py-2" onClick={() => handleEdit(po)}>
-                                                            <i className="bi bi-pencil-square me-2 text-primary"></i> Edit PO
-                                                        </button>
-                                                    </li>
-
-                                                    {/* STATUS CHANGE OPTION */}
-                                                    <li>
-                                                        <button className="dropdown-item py-2" onClick={() => handleStatusUpdate(po)}>
-                                                            <i className="bi bi-arrow-repeat me-2 text-warning"></i> Change Status
-                                                        </button>
-                                                    </li>
-
-                                                    {/* PAYMENT OPTION */}
-                                                    <li>
-                                                        <button className="dropdown-item py-2" onClick={() => handleAddPayment(po)}>
-                                                            <i className="bi bi-cash-stack me-2 text-success"></i> Add Payment
-                                                        </button>
-                                                    </li>
-
-                                                    <li><hr className="dropdown-divider" /></li>
-
-                                                    {/* DELETE OPTION */}
-                                                    <li>
-                                                        <button className="dropdown-item py-2 text-danger" onClick={() => handleDelete(po.id)}>
-                                                            <i className="bi bi-trash me-2"></i> Delete PO
-                                                        </button>
-                                                    </li>
-                                                </ul>
-                                            </div>
+                                    <td className="text-center pe-3 pe-sm-4">
+                                        <div className="dropdown">
+                                            <button 
+                                                className="btn btn-link btn-sm text-muted shadow-none p-1" 
+                                                type="button" 
+                                                data-bs-toggle="dropdown" 
+                                                aria-expanded="false"
+                                            >
+                                                <i className="bi bi-three-dots-vertical fs-5"></i>
+                                            </button>
+                                            <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: '10px', fontSize: '14px' }}>
+                                                <li>
+                                                    <button className="dropdown-item py-2" onClick={() => handlePreview(po)}>
+                                                        <i className="bi bi-eye me-2 text-muted"></i> View Details
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button className="dropdown-item py-2" onClick={() => handleEdit(po)}>
+                                                        <i className="bi bi-pencil-square me-2 text-primary"></i> Edit PO
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button className="dropdown-item py-2" onClick={() => handleStatusUpdate(po)}>
+                                                        <i className="bi bi-arrow-repeat me-2 text-warning"></i> Change Status
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button className="dropdown-item py-2" onClick={() => handleAddPayment(po)}>
+                                                        <i className="bi bi-cash-stack me-2 text-success"></i> Add Payment
+                                                    </button>
+                                                </li>
+                                                <li><hr className="dropdown-divider" /></li>
+                                                <li>
+                                                    <button className="dropdown-item py-2 text-danger" onClick={() => handleDelete(po.id)}>
+                                                        <i className="bi bi-trash me-2"></i> Delete PO
+                                                    </button>
+                                                </li>
+                                            </ul>
                                         </div>
                                     </td>
                                 </tr>
                             ))}
-                            
                         </tbody>
                     </table>
                 </div>
             </div>
 
             {/* --- MODALS SECTION --- */}
-            
-            {/* Create PO Modal */}
-           <CreatePOModal 
+            <CreatePOModal 
                 show={showModal} 
-                onClose={handleCloseModal} // Use the new close handler
+                onClose={handleCloseModal} 
                 leadId={leadId}
                 lead={lead}
                 onSuccess={fetchPOs}
-                editingPO={editingPO} // Pass the PO data for editing
+                editingPO={editingPO} 
             />
 
             <SupplierEmailModal 
                 show={showEmailModal}
                 onClose={() => setShowEmailModal(false)}
                 leadId={leadId}
-                lead={lead} // Lead number pass karein
+                lead={lead} 
             />
 
-            {/* Preview PO Modal - THIS WAS MISSING */}
             <POPreviewModal 
                 show={showPreviewModal} 
                 onClose={() => setShowPreviewModal(false)} 

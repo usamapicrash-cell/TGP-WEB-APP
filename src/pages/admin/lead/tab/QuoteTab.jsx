@@ -30,7 +30,6 @@ const QuoteTab = ({ leadId }) => {
         if (!leadId) return;
         setLoading(true);
         try {
-            // Fetch history and active lead data in parallel
             const [historyRes, leadRes] = await Promise.all([
                 api.get(`/leads/${leadId}/quotes`),
                 api.get(`/leads/${leadId}`)
@@ -133,98 +132,157 @@ const QuoteTab = ({ leadId }) => {
     };
 
     return (
-        <div className="row g-4">
+        <div className="row g-3 g-lg-4">
+            <style>
+                {`
+                    .quote-input-bg {
+                        background-color: #f8fafc !important;
+                        border: 1px solid #e2e8f0 !important;
+                    }
+                    .quote-input-bg:focus {
+                        border-color: #34497e !important;
+                        background-color: #ffffff !important;
+                    }
+                `}
+            </style>
+
             {/* Editor Side */}
-            <div className="col-lg-8">
-                <div className="card border-0 shadow-sm p-4" style={{ borderRadius: '15px' }}>
-                    <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+            <div className="col-12 col-lg-8">
+                <div className="card border-0 shadow-sm p-3 p-sm-4 rounded-4 bg-white">
+                    <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom gap-2">
                         <div>
-                            <h6 className="text-primary mb-0 fw-bold text-uppercase">Quote Editor</h6>
-                            <small className="text-muted">Create a new version</small>
+                            <h6 className="text-primary mb-0 fw-bold text-uppercase" style={{ letterSpacing: '0.5px' }}>Quote Editor</h6>
+                            <small className="text-muted">Create or modify pricing structure</small>
                         </div>
                         <button 
                             onClick={() => setItems([...items, { description: '', qty: 1, unit_price: 0 }])} 
-                            className="btn btn-sm btn-primary rounded-pill px-3"
+                            className="btn btn-sm btn-primary rounded-pill px-3 py-2 fw-medium d-inline-flex align-items-center"
                         >
                             <i className="bi bi-plus-lg me-1"></i> ADD ITEM
                         </button>
                     </div>
 
-                    <div className="table-responsive">
+                    {/* Desktop & Tablet Table View */}
+                    <div className="d-none d-md-block table-responsive">
                         <table className="table table-borderless align-middle">
                             <thead className="text-muted small">
                                 <tr className="border-bottom">
-                                    <th style={{ width: '55%' }}>DESCRIPTION</th>
-                                    <th className="text-center">QTY</th>
-                                    <th className="text-end">PRICE</th>
-                                    <th></th>
+                                    <th style={{ width: '50%' }}>DESCRIPTION</th>
+                                    <th className="text-center" style={{ width: '18%' }}>QTY</th>
+                                    <th className="text-end" style={{ width: '22%' }}>PRICE ($)</th>
+                                    <th className="text-end" style={{ width: '10%' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {items.map((item, idx) => (
                                     <tr key={idx} className="border-bottom-dashed">
-                                        <td>
+                                        <td className="py-2">
                                             <input 
                                                 type="text" 
-                                                className="form-control form-control-sm border-0 bg-light" 
+                                                className="form-control form-control-sm quote-input-bg py-2" 
+                                                placeholder="Item details..."
                                                 value={item.description} 
                                                 onChange={(e) => updateItem(idx, 'description', e.target.value)} 
                                             />
                                         </td>
-                                        <td>
+                                        <td className="py-2">
                                             <input 
                                                 type="number" 
-                                                className="form-control form-control-sm border-0 bg-light text-center" 
+                                                className="form-control form-control-sm quote-input-bg text-center py-2" 
                                                 value={item.qty} 
                                                 onChange={(e) => updateItem(idx, 'qty', e.target.value)} 
                                             />
                                         </td>
-                                        <td>
+                                        <td className="py-2">
                                             <input 
                                                 type="number" 
-                                                className="form-control form-control-sm border-0 bg-light text-end" 
+                                                className="form-control form-control-sm quote-input-bg text-end py-2" 
                                                 value={item.unit_price} 
                                                 onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} 
                                             />
                                         </td>
-                                        <td className="text-end">
+                                        <td className="text-end py-2">
                                             <button 
                                                 onClick={() => setItems(items.filter((_, i) => i !== idx))} 
-                                                className="btn btn-link text-danger p-0 shadow-none"
+                                                className="btn btn-link text-danger p-1 shadow-none"
+                                                title="Remove Item"
                                             >
-                                                <i className="bi bi-trash"></i>
+                                                <i className="bi bi-trash fs-6"></i>
                                             </button>
                                         </td>
                                     </tr>
                                 ))}
-                                {items.length === 0 && (
-                                    <tr>
-                                        <td colSpan="4" className="text-center py-4 text-muted small">No items added.</td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
 
-                    <div className="row mt-4">
-                        <div className="col-md-5 ms-auto text-end">
-                            {/*<div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className="text-muted small">Labour</span>
-                                <input 
-                                    type="number" 
-                                    className="form-control form-control-sm border-0 bg-light text-end w-50" 
-                                    value={labour} 
-                                    onChange={(e) => setLabour(e.target.value)} 
-                                />
-                            </div>*/}
-                            <div className="d-flex justify-content-between align-items-center border-top pt-2">
-                                <span className="fw-bold">TOTAL</span>
-                                <span className="fw-bold text-primary fs-4">${total.toLocaleString()}</span>
-                            </div>
-                            <div className="d-flex gap-2 mt-3">
-                                <button className="btn btn-light flex-grow-1" onClick={resetForm}>CLEAR</button>
+                    {/* Mobile Cards View (App-like UX) */}
+                    <div className="d-block d-md-none mb-3">
+                        {items.map((item, idx) => (
+                            <div key={idx} className="p-3 border rounded-3 mb-3 bg-light-subtle position-relative">
                                 <button 
-                                    className="btn btn-primary flex-grow-1 shadow-sm" 
+                                    onClick={() => setItems(items.filter((_, i) => i !== idx))} 
+                                    className="btn btn-sm btn-link text-danger p-0 position-absolute top-0 end-0 mt-2 me-2"
+                                >
+                                    <i className="bi bi-trash fs-5"></i>
+                                </button>
+                                
+                                <div className="mb-2 pe-4">
+                                    <label className="form-label small text-muted mb-1 fw-bold">Item Description</label>
+                                    <input 
+                                        type="text" 
+                                        className="form-control form-control-sm bg-white" 
+                                        placeholder="Description"
+                                        value={item.description} 
+                                        onChange={(e) => updateItem(idx, 'description', e.target.value)} 
+                                    />
+                                </div>
+
+                                <div className="row g-2">
+                                    <div className="col-6">
+                                        <label className="form-label small text-muted mb-1 fw-bold">Quantity</label>
+                                        <input 
+                                            type="number" 
+                                            className="form-control form-control-sm bg-white text-center" 
+                                            value={item.qty} 
+                                            onChange={(e) => updateItem(idx, 'qty', e.target.value)} 
+                                        />
+                                    </div>
+                                    <div className="col-6">
+                                        <label className="form-label small text-muted mb-1 fw-bold">Price ($)</label>
+                                        <input 
+                                            type="number" 
+                                            className="form-control form-control-sm bg-white text-end" 
+                                            value={item.unit_price} 
+                                            onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Empty State */}
+                    {items.length === 0 && (
+                        <div className="text-center py-5 border rounded-3 bg-light my-2">
+                            <i className="bi bi-receipt text-muted fs-1 mb-2 d-block"></i>
+                            <span className="text-muted small">No items added to this quote yet.</span>
+                        </div>
+                    )}
+
+                    {/* Footer / Summary Action Block */}
+                    <div className="row mt-4 pt-3 border-top">
+                        <div className="col-12 col-md-7 col-lg-6 ms-auto">
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <span className="fw-bold text-secondary">TOTAL</span>
+                                <span className="fw-bold text-primary fs-3">${total.toLocaleString()}</span>
+                            </div>
+                            <div className="d-flex gap-2">
+                                <button className="btn btn-outline-secondary flex-grow-1 rounded-3 py-2 fw-medium" onClick={resetForm}>
+                                    CLEAR
+                                </button>
+                                <button 
+                                    className="btn btn-primary flex-grow-1 rounded-3 py-2 fw-medium shadow-sm" 
                                     onClick={handleSave} 
                                     disabled={saving}
                                 >
@@ -237,21 +295,22 @@ const QuoteTab = ({ leadId }) => {
             </div>
 
             {/* History Sidebar */}
-            <div className="col-lg-4">
-                <StatusHandler loading={loading} error={error} data={history} loadingText="Loading Quote Details...">
-                    <div className="card border-0 h-100 p-3" style={{ borderRadius: '15px', backgroundColor: '#f8f9fa' }}>
-                        <h6 className="text-muted mb-4 small fw-bold text-uppercase">Quote History</h6>
-                        <div className="overflow-auto" style={{ maxHeight: '600px' }}>
+            <div className="col-12 col-lg-4">
+                <StatusHandler loading={loading} error={error} data={history} loadingText="Loading Quote History...">
+                    <div className="card border-0 rounded-4 p-3 p-sm-4 bg-white shadow-sm h-100">
+                        <h6 className="text-muted mb-3 small fw-bold text-uppercase" style={{ letterSpacing: '0.5px' }}>Quote History</h6>
+                        
+                        <div className="overflow-auto" style={{ maxHeight: '600px', paddingRight: '2px' }}>
                             {history.length > 0 ? history.map((q, index) => (
-                                <div key={q.id} className={`p-3 border rounded-3 mb-3 bg-white shadow-sm ${q.status === 'rejected' ? 'opacity-75 bg-light' : 'border-primary-subtle'}`}>
+                                <div key={q.id} className={`p-3 border rounded-3 mb-3 bg-white ${q.status === 'rejected' ? 'opacity-75 bg-light' : 'border-light-subtle shadow-sm'}`}>
                                     <div className="d-flex justify-content-between mb-2 align-items-center">
-                                        <span className="fw-bold small text-truncate" style={{ maxWidth: '110px' }}>
+                                        <span className="fw-bold small text-truncate" style={{ maxWidth: '120px' }}>
                                             {q.quote_number || `Quote #${q.id}`}
                                         </span>
                                         
                                         <div className="dropdown">
                                             <button 
-                                                className={`btn btn-sm ${index === 0 ? 'dropdown-toggle' : ''} rounded-pill px-2 py-0 border-0 ${
+                                                className={`btn btn-sm ${index === 0 ? 'dropdown-toggle' : ''} rounded-pill px-2 py-1 border-0 ${
                                                     q.status === 'approved' ? 'bg-success text-white' : 
                                                     q.status === 'sent' ? 'bg-info text-white' : 
                                                     q.status === 'rejected' ? 'bg-danger text-white' : 'bg-warning text-dark'
@@ -259,7 +318,7 @@ const QuoteTab = ({ leadId }) => {
                                                 type="button"
                                                 data-bs-toggle={index === 0 ? "dropdown" : ""}
                                                 disabled={updatingStatus === q.id || index !== 0}
-                                                style={{ fontSize: '10px', cursor: index === 0 ? 'pointer' : 'default' }}
+                                                style={{ fontSize: '11px', fontWeight: '600', cursor: index === 0 ? 'pointer' : 'default' }}
                                             >
                                                 {updatingStatus === q.id ? '...' : q.status.toUpperCase()}
                                             </button>
@@ -276,25 +335,25 @@ const QuoteTab = ({ leadId }) => {
                                         </div>
                                     </div>
 
-                                    <div className="d-flex justify-content-between align-items-center">
-                                        <span className="fw-bold text-primary">${parseFloat(q.total_amount).toLocaleString()}</span>
-                                        <div className="btn-group shadow-sm bg-white rounded">
-                                            <button onClick={() => handleViewPdf(q.id)} className="btn btn-sm btn-outline-danger border-0">
-                                                <i className="bi bi-file-pdf"></i>
+                                    <div className="d-flex justify-content-between align-items-center my-2">
+                                        <span className="fw-bold text-primary fs-5">${parseFloat(q.total_amount).toLocaleString()}</span>
+                                        <div className="btn-group shadow-sm bg-light rounded-2 border">
+                                            <button onClick={() => handleViewPdf(q.id)} className="btn btn-sm btn-link text-danger p-1 px-2 border-0" title="View PDF">
+                                                <i className="bi bi-file-pdf fs-6"></i>
                                             </button>
                                             {index === 0 && q.status !== 'rejected' && (
-                                                <button onClick={() => loadQuoteIntoEditor(q)} className="btn btn-sm btn-outline-primary border-0">
-                                                    <i className="bi bi-pencil-square"></i>
+                                                <button onClick={() => loadQuoteIntoEditor(q)} className="btn btn-sm btn-link text-primary p-1 px-2 border-0" title="Edit Quote">
+                                                    <i className="bi bi-pencil-square fs-6"></i>
                                                 </button>
                                             )}
                                         </div>
                                     </div>
                                     
-                                    <div className="d-flex justify-content-between mt-2 align-items-center" style={{ fontSize: '10px' }}>
+                                    <div className="d-flex justify-content-between align-items-center pt-2 border-top mt-2" style={{ fontSize: '11px' }}>
                                         <span className="text-muted">{new Date(q.created_at).toLocaleDateString()}</span>
-                                        <div className="d-flex gap-2">
-                                            {q.status === 'approved' && <i className="bi bi-patch-check-fill text-success"></i>}
-                                            {index === 0 && <span className="text-primary fw-bold" style={{fontSize: '9px'}}>LATEST</span>}
+                                        <div className="d-flex gap-2 align-items-center">
+                                            {q.status === 'approved' && <i className="bi bi-patch-check-fill text-success fs-6"></i>}
+                                            {index === 0 && <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2" style={{ fontSize: '9px' }}>LATEST</span>}
                                         </div>
                                     </div>
                                 </div>

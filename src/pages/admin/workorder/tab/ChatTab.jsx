@@ -109,53 +109,55 @@ const ChatTab = ({ lead }) => {
     }, [messages]);
     
     return (
-        <div className="chat-tab-container bg-white rounded-4 shadow-sm border overflow-hidden" style={{ height: '700px', display: 'flex', flexDirection: 'column' }}>
+        <div className="chat-tab-container bg-white rounded-4 shadow-sm border overflow-hidden d-flex flex-column" style={{ height: 'min(700px, 80vh)' }}>
             
-            {/* Header Tabs */}
-            <div className="p-3 border-bottom bg-white">
-                <div className="custom-tab-wrapper d-flex p-1 bg-light rounded-pill" style={{  }}>
+            {/* Header Tabs with Horizontal Scroll fallback */}
+            <div className="p-2 p-sm-3 border-bottom bg-white">
+                <div className="custom-tab-wrapper d-flex p-1 bg-light rounded-pill overflow-auto no-scrollbar">
                     {isGlazierAssigned && (
                         <button 
-                            className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 ${activeSubTab === 'glazier' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
+                            className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 text-nowrap px-3 ${activeSubTab === 'glazier' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
                             onClick={() => setActiveSubTab('glazier')}
                         >
-                            <i className="bi bi-chat-left-text me-2"></i>Glazier Chat
+                            <i className="bi bi-chat-left-text me-1 me-sm-2"></i>Glazier Chat
                         </button>
                     )}
                     <button 
-                        className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 ${activeSubTab === 'customer' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
+                        className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 text-nowrap px-3 ${activeSubTab === 'customer' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
                         onClick={() => setActiveSubTab('customer')}
                     >
-                        <i className="bi bi-envelope-paper me-2"></i>Email Customer
+                        <i className="bi bi-envelope-paper me-1 me-sm-2"></i>Email Customer
                     </button>
 
                     <button 
-                        className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 ${activeSubTab === 'supplier' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
+                        className={`flex-grow-1 btn btn-sm rounded-pill transition-all py-2 text-nowrap px-3 ${activeSubTab === 'supplier' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted border-0'}`}
                         onClick={() => setActiveSubTab('supplier')}
                     >
-                        <i className="bi bi-truck me-2"></i>Email Supplier
+                        <i className="bi bi-truck me-1 me-sm-2"></i>Email Supplier
                     </button>
                 </div>
             </div>
 
+            {/* Viewports */}
             <div className="flex-grow-1 overflow-hidden d-flex flex-column position-relative">
                 {activeSubTab === 'glazier' && (
                     <>
-                        <div className="flex-grow-1 p-4 overflow-auto chat-viewport" style={{ backgroundColor: '#f8f9fa' }}>
+                        {/* Chat History Viewport */}
+                        <div className="flex-grow-1 p-3 p-sm-4 overflow-auto chat-viewport" style={{ backgroundColor: '#f8f9fa' }}>
                             {messages.length > 0 ? (
                                 messages.map((msg) => {
                                     const isMe = msg.sender_id === currentUserId;
                                     return (
-                                        <div key={msg.id} className={`d-flex mb-4 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
+                                        <div key={msg.id} className={`d-flex mb-3 mb-sm-4 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
                                             <div className={`message-bubble shadow-sm ${isMe ? 'sent' : 'received'}`}>
-                                                <div className="message-content">{msg.message}</div>
+                                                <div className="message-content text-break">{msg.message}</div>
                                                 {msg.attachment && (
                                                     <div className="attachment-wrapper mt-2">
                                                         <img 
                                                             src={msg.attachment.startsWith('http') ? msg.attachment : `${STORAGE_BASE_URL}/${msg.attachment}`} 
                                                             className="rounded-3 img-fluid border shadow-sm bg-white" 
                                                             alt="attachment" 
-                                                            style={{ maxHeight: '200px' }} 
+                                                            style={{ maxHeight: '200px', objectFit: 'contain' }} 
                                                         />
                                                     </div>
                                                 )}
@@ -175,20 +177,22 @@ const ChatTab = ({ lead }) => {
                             <div ref={chatEndRef} />
                         </div>
 
-                        {/* Input Area */}
-                        <div className="p-3 bg-white border-top">
-                            <form onSubmit={handleSendGlazierMessage} className="d-flex align-items-center gap-2">
+                        {/* Responsive Input Bar */}
+                        <div className="p-2 p-sm-3 bg-white border-top">
+                            <form onSubmit={handleSendGlazierMessage} className="d-flex align-items-center gap-1 gap-sm-2">
                                 <input type="file" ref={fileInputRef} hidden onChange={handleFileUpload} accept="image/*" />
-                                <button type="button" className="btn btn-light rounded-circle p-2" onClick={() => fileInputRef.current.click()}>
+                                
+                                <button type="button" className="btn btn-light rounded-circle p-2 d-flex align-items-center justify-content-center" style={{ width: '38px', height: '38px' }} onClick={() => fileInputRef.current.click()} title="Attach File">
                                     <i className="bi bi-paperclip fs-5 text-primary"></i>
                                 </button>
-                                <button type="button" className="btn btn-light rounded-circle p-2" onClick={() => setShowSketchModal(true)}>
+                                
+                                <button type="button" className="btn btn-light rounded-circle p-2 d-flex align-items-center justify-content-center" style={{ width: '38px', height: '38px' }} onClick={() => setShowSketchModal(true)} title="Site Sketch">
                                     <i className="bi bi-palette fs-5 text-success"></i>
                                 </button>
 
                                 <input 
                                     type="text" 
-                                    className="form-control rounded-pill border-light bg-light px-4 py-2" 
+                                    className="form-control rounded-pill border-light bg-light px-3 px-sm-4 py-2" 
                                     placeholder="Type message..." 
                                     value={newMessage}
                                     onChange={(e) => setNewMessage(e.target.value)}
@@ -197,8 +201,8 @@ const ChatTab = ({ lead }) => {
                                 <button 
                                     type="submit" 
                                     disabled={!newMessage.trim()}
-                                    className={`btn rounded-circle d-flex align-items-center justify-content-center ${newMessage.trim() ? 'btn-primary shadow pulse' : 'btn-light'}`}
-                                    style={{ width: '45px', height: '45px' }}
+                                    className={`btn rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${newMessage.trim() ? 'btn-primary shadow pulse' : 'btn-light'}`}
+                                    style={{ width: '40px', height: '40px' }}
                                 >
                                     <i className="bi bi-send-fill"></i>
                                 </button>
@@ -220,10 +224,13 @@ const ChatTab = ({ lead }) => {
             </div>
 
             <style>{`
-                .message-bubble { max-width: 75%; padding: 12px 16px; font-size: 14px; position: relative; }
-                .message-bubble.sent { background: linear-gradient(135deg, #007bff, #0056b3); color: white; border-radius: 20px 20px 4px 20px; }
-                .message-bubble.received { background: white; color: #333; border-radius: 20px 20px 20px 4px; border: 1px solid #eee; }
-                .message-time { font-size: 10px; margin-top: 5px; text-align: right; }
+                .message-bubble { max-width: 85%; padding: 10px 14px; font-size: 14px; position: relative; }
+                @media (min-width: 576px) {
+                    .message-bubble { max-width: 75%; padding: 12px 16px; }
+                }
+                .message-bubble.sent { background: linear-gradient(135deg, #007bff, #0056b3); color: white; border-radius: 18px 18px 4px 18px; }
+                .message-bubble.received { background: white; color: #333; border-radius: 18px 18px 18px 4px; border: 1px solid #eee; }
+                .message-time { font-size: 10px; margin-top: 4px; text-align: right; }
                 .pulse { animation: pulse-blue 2s infinite; }
                 @keyframes pulse-blue {
                     0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4); }
@@ -232,14 +239,16 @@ const ChatTab = ({ lead }) => {
                 }
                 .chat-viewport::-webkit-scrollbar { width: 4px; }
                 .chat-viewport::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
 
             {/* Sketch Modal */}
-            <Modal show={showSketchModal} onHide={() => setShowSketchModal(false)} size="lg" centered>
+            <Modal show={showSketchModal} onHide={() => setShowSketchModal(false)} size="lg" centered fullscreen="sm-down">
                 <Modal.Header closeButton>
                     <Modal.Title className="h6 fw-bold">CREATE SITE SKETCH</Modal.Title>
                 </Modal.Header>
-                <Modal.Body className="bg-light p-3">
+                <Modal.Body className="bg-light p-2 p-sm-3">
                     <div className="bg-white border rounded-3 overflow-hidden shadow-sm">
                         <div className="d-flex align-items-center justify-content-between p-2 bg-light border-bottom">
                             <div className="d-flex gap-2">
@@ -253,7 +262,7 @@ const ChatTab = ({ lead }) => {
                                 <button className="btn btn-sm btn-outline-danger border-0" onClick={() => canvasRef.current.clearCanvas()}><i className="bi bi-trash"></i></button>
                             </div>
                         </div>
-                        <div style={{ height: '400px' }}>
+                        <div style={{ height: '350px' }}>
                             <ReactSketchCanvas ref={canvasRef} strokeWidth={strokeWidth} strokeColor={strokeColor} />
                         </div>
                     </div>

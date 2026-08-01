@@ -103,33 +103,65 @@ const OrderCommunication = ({ phoneNumber, clientName }) => {
 
     return (
         <div className="d-flex align-items-center gap-2 position-relative">
-            {/* --- Call Button Trigger (Global Call Context) --- */}
+            {/* Embedded styles for smart mobile overlay */}
+            <style>
+                {`
+                    .smart-sms-card {
+                        position: fixed;
+                        bottom: 20px;
+                        right: 20px;
+                        width: clamp(300px, 92vw, 380px);
+                        height: clamp(400px, 80vh, 520px);
+                        z-index: 2050;
+                        border-radius: 16px;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+                    }
+
+                    @media (max-width: 576px) {
+                        .smart-sms-card {
+                            bottom: 12px;
+                            right: 4%;
+                            left: 4%;
+                            width: 92vw !important;
+                            height: 82vh !important;
+                        }
+                    }
+                `}
+            </style>
+
+            {/* --- Call Button Trigger --- */}
             <button
-                className="btn rounded-circle d-flex align-items-center justify-content-center bg-white shadow-sm"
+                type="button"
+                className="btn rounded-circle d-flex align-items-center justify-content-center bg-white shadow-sm flex-shrink-0"
                 style={{
-                    width: '40px', height: '40px', border: `1px solid #e2e8f0`,
+                    width: '38px', 
+                    height: '38px', 
+                    border: `1px solid #cbd5e1`,
                     color: themeColor
                 }}
                 onClick={() => makeCall(phoneNumber, clientName)}
                 title="Call Customer"
             >
-                <i className="bi bi-telephone fs-5"></i>
+                <i className="bi bi-telephone fs-6"></i>
             </button>
 
             {/* --- SMS Button Trigger --- */}
             <button
-                className="btn rounded-circle d-flex align-items-center justify-content-center bg-white shadow-sm position-relative"
+                type="button"
+                className="btn rounded-circle d-flex align-items-center justify-content-center bg-white shadow-sm position-relative flex-shrink-0"
                 style={{
-                    width: '40px', height: '40px', border: `1px solid #e2e8f0`,
+                    width: '38px', 
+                    height: '38px', 
+                    border: `1px solid #cbd5e1`,
                     color: viewType === 'sms' ? '#ffffff' : themeColor,
                     backgroundColor: viewType === 'sms' ? themeColor : '#ffffff'
                 }}
                 onClick={() => setViewType(viewType === 'sms' ? null : 'sms')}
                 title="Smart Message"
             >
-                <i className={`bi bi-chat-left-text${viewType === 'sms' ? '-fill' : ''} fs-5`}></i>
+                <i className={`bi bi-chat-left-text${viewType === 'sms' ? '-fill' : ''} fs-6`}></i>
                 {unreadCount > 0 && (
-                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style={{ fontSize: '10px' }}>
                         {unreadCount}
                     </span>
                 )}
@@ -137,29 +169,22 @@ const OrderCommunication = ({ phoneNumber, clientName }) => {
 
             {/* ================= SMART SMS PANEL INTERFACE ================= */}
             {viewType === 'sms' && (
-                <div
-                    className="card border-0 shadow-lg"
-                    style={{
-                        position: 'fixed', bottom: '24px', right: '24px',
-                        width: '380px', height: '480px', zIndex: 2000,
-                        borderRadius: '16px', overflow: 'hidden',
-                        display: 'flex', flexDirection: 'column',
-                        backgroundColor: '#ffffff', border: '1px solid #e2e8f0'
-                    }}
-                >
+                <div className="card border-0 smart-sms-card overflow-hidden d-flex flex-column bg-white">
                     {/* Header */}
-                    <div className="card-header py-3 d-flex justify-content-between align-items-center text-white border-0" style={{ backgroundColor: themeColor }}>
-                        <div>
-                            <h6 className="fw-bold mb-0 text-white">{clientName}</h6>
-                            <small className="opacity-75">{phoneNumber || 'No Number'}</small>
+                    <div className="card-header py-3 d-flex justify-content-between align-items-center text-white border-0 flex-shrink-0" style={{ backgroundColor: themeColor }}>
+                        <div className="overflow-hidden me-2">
+                            <h6 className="fw-bold mb-0 text-white text-truncate" style={{ fontSize: '0.95rem' }}>{clientName}</h6>
+                            <small className="opacity-75 d-block text-truncate" style={{ fontSize: '0.75rem' }}>{phoneNumber || 'No Number'}</small>
                         </div>
-                        <button className="btn-close btn-close-white shadow-none" onClick={() => setViewType(null)}></button>
+                        <button type="button" className="btn-close btn-close-white shadow-none flex-shrink-0" onClick={() => setViewType(null)}></button>
                     </div>
 
                     {/* Conversations Logs */}
-                    <div ref={chatBodyRef} className="card-body p-3 d-flex flex-column gap-2 flex-grow-1" style={{ overflowY: 'auto', backgroundColor: '#f4f6f9' }}>
+                    <div ref={chatBodyRef} className="card-body p-3 d-flex flex-column gap-2 flex-grow-1" style={{ overflowY: 'auto', backgroundColor: '#f8fafc' }}>
                         {loading ? (
-                            <div className="text-center my-auto"><div className="spinner-border spinner-border-sm text-secondary"></div></div>
+                            <div className="text-center my-auto">
+                                <div className="spinner-border spinner-border-sm text-secondary"></div>
+                            </div>
                         ) : messages.length === 0 ? (
                             <div className="text-center my-auto text-muted small">No message history found.</div>
                         ) : (
@@ -170,9 +195,11 @@ const OrderCommunication = ({ phoneNumber, clientName }) => {
                                         msg.type === 'outgoing' ? 'text-white align-self-end' : 'bg-white text-dark align-self-start'
                                     }`}
                                     style={{
-                                        maxWidth: '80%', fontSize: '0.9rem',
+                                        maxWidth: '85%', 
+                                        fontSize: '0.85rem',
                                         backgroundColor: msg.type === 'outgoing' ? themeColor : '#ffffff',
-                                        borderRadius: msg.type === 'outgoing' ? '14px 14px 0px 14px' : '14px 14px 14px 0px'
+                                        borderRadius: msg.type === 'outgoing' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                                        wordBreak: 'break-word'
                                     }}
                                 >
                                     <div className="mb-0">{msg.text}</div>
@@ -181,7 +208,7 @@ const OrderCommunication = ({ phoneNumber, clientName }) => {
                                         {msg.type === 'outgoing' && (
                                             <i className={`bi ${
                                                 msg.status === 'sending' ? 'bi-clock' :
-                                                msg.status === 'failed' ? 'bi-exclamation-circle text-danger' : 'bi-check2-all'
+                                                msg.status === 'failed' ? 'bi-exclamation-circle text-warning' : 'bi-check2-all'
                                             }`}></i>
                                         )}
                                     </div>
@@ -191,18 +218,27 @@ const OrderCommunication = ({ phoneNumber, clientName }) => {
                     </div>
 
                     {/* Form Input */}
-                    <div className="card-footer bg-white border-0 p-3">
+                    <div className="card-footer bg-white border-top p-2 p-sm-3 flex-shrink-0">
                         <form onSubmit={handleSendMessage} className="d-flex gap-2 align-items-center">
                             <input
                                 type="text"
-                                className="form-control border-0 py-2"
+                                className="form-control border-0 shadow-none py-2"
                                 placeholder="Type a message..."
                                 value={typedMessage}
                                 onChange={(e) => setTypedMessage(e.target.value)}
-                                style={{ borderRadius: '20px', backgroundColor: '#edf2f7', paddingLeft: '15px' }}
+                                style={{ 
+                                    borderRadius: '20px', 
+                                    backgroundColor: '#f1f5f9', 
+                                    paddingLeft: '15px',
+                                    fontSize: '0.875rem' 
+                                }}
                             />
-                            <button type="submit" className="btn border-0 text-white d-flex align-items-center justify-content-center" style={{ backgroundColor: themeColor, width: '38px', height: '38px', borderRadius: '50%' }}>
-                                <i className="bi bi-send-fill"></i>
+                            <button 
+                                type="submit" 
+                                className="btn border-0 text-white d-flex align-items-center justify-content-center flex-shrink-0" 
+                                style={{ backgroundColor: themeColor, width: '36px', height: '36px', borderRadius: '50%' }}
+                            >
+                                <i className="bi bi-send-fill fs-6"></i>
                             </button>
                         </form>
                     </div>

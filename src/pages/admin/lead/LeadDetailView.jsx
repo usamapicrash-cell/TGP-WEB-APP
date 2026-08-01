@@ -28,7 +28,7 @@ const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
     const [showModal, setShowModal] = useState(false);
     const [showJobModal, setShowJobModal] = useState(false);
 
-    const tabs = ['Details', 'Quote', 'Chat', 'Media', 'Payments', 'POs', 'Schedule', 'Internal Notes', 'History'];
+    const tabs = ['Details', 'Quote', 'Chat', 'Media', 'POs', 'Payments', 'Schedule', 'Internal Notes', 'History'];
 
     useEffect(() => {
         setCurrentLead(lead);
@@ -97,23 +97,40 @@ const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
     };
 
     return (
-        <div className="p-2 p-md-3">
+        <div className="p-3 p-md-4">
             <style>
                 {`
                     .custom-assign-select {
-                        width: 100% !important;
-                        height: 40px !important;
-                        padding: 5px !important;
+                        height: 38px !important;
+                        font-size: 13px !important;
+                        border-color: #cbd5e1 !important;
+                        background-color: #ffffff !important;
                         border-radius: 8px !important;
+                        padding-top: 4px;
+                        padding-bottom: 4px;
                     }
-                    @media (min-width: 576px) {
-                        .custom-assign-select {
-                            width: 180px !important;
-                        }
+                    .custom-assign-select:focus {
+                        border-color: #34497e !important;
+                        box-shadow: 0 0 0 0.2rem rgba(52, 73, 126, 0.15) !important;
                     }
-                    .transition-all { transition: all 0.2s ease-in-out; }
-                    
-                    /* Custom Scrollbar for Pill Tabs on mobile */
+                    .nav-pill-btn {
+                        border-radius: 8px;
+                        font-size: 0.85rem;
+                        font-weight: 500;
+                        color: #64748b;
+                        transition: all 0.2s ease;
+                        background: transparent;
+                    }
+                    .nav-pill-btn.active {
+                        background-color: #ffffff !important;
+                        color: #34497e !important;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+                        font-weight: 600;
+                    }
+                    .nav-pill-btn:hover:not(.active) {
+                        color: #1e293b;
+                        background-color: rgba(255,255,255,0.6);
+                    }
                     .no-scrollbar::-webkit-scrollbar {
                         display: none;
                     }
@@ -121,94 +138,133 @@ const LeadDetailView = ({ lead, onBack, onJobCreated }) => {
                         -ms-overflow-style: none;
                         scrollbar-width: none;
                     }
+                    .btn-convert-job {
+                        background-color: #34497e !important;
+                        border: none !important;
+                        border-radius: 8px !important;
+                        height: 38px !important;
+                        font-size: 13px !important;
+                        font-weight: 600 !important;
+                    }
+                    .btn-convert-job:hover {
+                        background-color: #283863 !important;
+                    }
+                    .back-link {
+                        color: #64748b;
+                        font-size: 13px;
+                        transition: color 0.15s ease;
+                    }
+                    .back-link:hover {
+                        color: #1e293b;
+                    }
                 `}
             </style>
             
-            {/* Header Section */}
-            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
-                <div>
-                    <button className="btn btn-link text-decoration-none p-0 mb-2 text-muted small" onClick={onBack}>
+            {/* Clean & Compact Header Container */}
+            <div className="mb-4">
+                {/* Back Button */}
+                <div className="mb-2">
+                    <button 
+                        className="btn btn-link text-decoration-none p-0 back-link fw-medium d-inline-flex align-items-center" 
+                        onClick={onBack}
+                    >
                         <i className="bi bi-arrow-left me-1"></i> Back to Leads
                     </button>
-                    
-                    <div className="d-flex flex-wrap align-items-center gap-2 gap-sm-3">
-                        <h4 className="fw-bold mb-0 text-break">{currentLead.client_name}</h4>
-                        
-                        {assignedId && (
-                            <span className="badge bg-info-subtle text-info border-info-subtle px-3 rounded-pill" style={{ fontSize: '0.85rem' }}>
-                                <i className="bi bi-person me-1"></i>
-                                {executives.find(e => e.id == assignedId)?.name || "Assigned"}
-                            </span>
-                        )}
-
-                        <span className={`badge rounded-pill ${currentLead.status === 'quote' ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success'} px-3`}>
-                            {currentLead.status?.toUpperCase()}
-                        </span>
-                    </div>
-
-                    <p className="text-muted small mb-0 mt-1">
-                        <span className="fw-bold text-dark">{currentLead.lead_number}</span> • {currentLead.lead_type?.name || 'General Project'}
-                    </p>
                 </div>
 
-                {/* Actions Section */}
-                <div className="d-flex flex-column flex-sm-row w-100 w-md-auto align-items-stretch align-items-sm-end gap-2">
-                    <div className="flex-fill">
-                        <label className="small fw-bold text-muted d-block mb-1 text-uppercase" style={{ fontSize: '10px' }}>Assign To</label>
-                        <select 
-                            className="form-control custom-assign-select"
-                            value={assignedId}
-                            onChange={handleAssign}
-                            disabled={updating}
-                        >
-                            <option value="">Unassigned</option>
-                            {executives.map(exec => (
-                                <option key={exec.id} value={exec.id}>{exec.name}</option>
-                            ))}
-                        </select>
+                {/* Main Header Content */}
+                <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                    
+                    {/* Left Side: Client Name + Status Badges & Sub-details */}
+                    <div className="d-flex flex-column gap-1">
+                        <div className="d-flex align-items-center flex-wrap gap-2">
+                            <h2 className="fw-bold text-dark mb-0 fs-3">{currentLead.client_name}</h2>
+                            
+                            <span className="badge bg-emerald-100 text-emerald-800 bg-success-subtle text-success px-2.5 py-1 rounded-pill small fw-semibold">
+                                {currentLead.status?.toUpperCase() || 'LEAD'}
+                            </span>
+
+                            {assignedId && (
+                                <span className="badge bg-light text-secondary border px-2.5 py-1 rounded-pill small fw-normal d-inline-flex align-items-center">
+                                    <i className="bi bi-person-fill me-1 text-primary"></i>
+                                    {executives.find(e => e.id == assignedId)?.name || "Assigned"}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* ID & Category */}
+                        <div className="text-muted small d-flex align-items-center gap-2 mt-1">
+                            <span className="fw-semibold text-dark">{currentLead.lead_number}</span>
+                            <span>•</span>
+                            <span className="text-uppercase tracking-wide">{currentLead.lead_type?.name || 'RESIDENTIAL'}</span>
+                        </div>
                     </div>
-                    <button 
-                        onClick={() => setShowJobModal(true)} 
-                        className="btn btn-primary px-4 shadow-none text-nowrap mt-2 mt-sm-0" 
-                        style={{ backgroundColor: '#34497e', border: 'none', borderRadius: '8px', height: '40px' }}
-                    >
-                        Convert to Job
-                    </button>
+
+                    {/* Right Side: Communication + Assign Dropdown + Action Button (Single Straight Line) */}
+                    <div className="d-flex align-items-center flex-wrap gap-2 gap-sm-3 mt-1 mt-lg-0">
+                        
+                        {/* WhatsApp / Call Icons */}
+                        {currentLead && (
+                            <div className="d-flex align-items-center me-1">
+                                <OrderCommunication 
+                                    phoneNumber={currentLead?.phone} 
+                                    clientName={currentLead?.client_name || 'Customer'} 
+                                />
+                            </div>
+                        )}
+
+                        {/* Compact Assign Box */}
+                        <div className="d-flex align-items-center gap-2">
+                            <span className="small fw-bold text-muted text-nowrap d-none d-sm-inline" style={{ fontSize: '11px', letterSpacing: '0.5px' }}>
+                                ASSIGN TO:
+                            </span>
+                            <select 
+                                className="form-select custom-assign-select shadow-none"
+                                style={{ width: '160px' }}
+                                value={assignedId}
+                                onChange={handleAssign}
+                                disabled={updating}
+                            >
+                                <option value="">Unassigned</option>
+                                {executives.map(exec => (
+                                    <option key={exec.id} value={exec.id}>{exec.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Convert Button */}
+                        <button 
+                            onClick={() => setShowJobModal(true)} 
+                            className="btn btn-primary btn-convert-job px-3 shadow-sm text-nowrap d-inline-flex align-items-center justify-content-center" 
+                        >
+                            <i className="bi bi-briefcase me-2"></i> Convert to Job
+                        </button>
+                    </div>
+
                 </div>
             </div>
 
-            {/* Pill Navigation Bar */}
-            <div className="d-flex p-2 mb-4 align-items-center justify-content-between flex-nowrap overflow-x-auto no-scrollbar" style={{ borderRadius: '12px', gap: '6px', backgroundColor: 'rgb(245, 247, 249)' }}>
-                <div className="d-flex align-items-center" style={{ gap: '4px' }}>
+            {/* Scrollable Navigation Tabs Bar */}
+            <div className="d-flex p-1 mb-4 align-items-center  rounded-3" style={{ backgroundColor: 'rgb(245, 247, 249)' }}>
+                <div className="d-flex align-items-center gap-1 overflow-x-auto no-scrollbar py-1 px-1 w-100">
                     {tabs.map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`btn border-0 py-2 px-3 small fw-semibold transition-all ${activeTab === tab ? 'shadow-sm bg-white text-primary' : 'text-muted'}`}
-                            style={{ borderRadius: '8px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+                            className={`btn border-0 py-2 px-3 nav-pill-btn text-nowrap ${activeTab === tab ? 'active' : ''}`}
                         >
                             {tab}
                         </button>
                     ))}
                 </div>
-
-                {/* Communication Tool Options */}
-                {currentLead && (
-                    <div className="ms-2 flex-shrink-0">
-                        <OrderCommunication 
-                            phoneNumber={currentLead?.phone} 
-                            clientName={currentLead?.client_name || 'Customer'} 
-                        />
-                    </div>
-                )}
             </div>
 
-            {/* Render Tab Data */}
+            {/* Active Tab Panel */}
             <div className="tab-content-container">
                 {renderTabContent()}
             </div>
 
-            {/* Modal Dialogs */}
+            {/* Modals */}
             <ConvertToJobModal 
                 show={showJobModal}
                 onClose={() => setShowJobModal(false)}
