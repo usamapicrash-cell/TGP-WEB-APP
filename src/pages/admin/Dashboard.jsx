@@ -314,15 +314,6 @@ const AdminDashboard = () => {
                                             <tr key={i} className="border-bottom-0">
                                                 <td className="ps-0 py-3">
                                                     <div className="d-flex align-items-center">
-                                                        <div className={`rounded-3 text-center me-2 d-flex flex-column justify-content-center flex-shrink-0 ${app.is_today ? 'bg-primary text-white' : 'bg-light text-muted'}`} 
-                                                             style={{ width: '38px', height: '38px' }}>
-                                                            <span className="fw-bold small mb-0" style={{ fontSize: '9px' }}>
-                                                                {app.is_today ? 'TOD' : app.date.split(' ')[1] || '---'}
-                                                            </span>
-                                                            <span className="fw-bold" style={{ fontSize: '12px', marginTop: '-3px' }}>
-                                                                {app.is_today ? '★' : app.date.split(' ')[0]}
-                                                            </span>
-                                                        </div>
                                                         <div className="d-flex flex-column">
                                                             <span className={`fw-bold small ${app.is_today ? 'text-primary' : 'text-dark'}`}>
                                                                 {app.is_today ? 'Today' : app.date}
