@@ -276,7 +276,7 @@ const POTab = ({ lead, leadId }) => {
             </div>
 
             {/* Table Container */}
-            <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+            <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '15px' }}>
                 <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0 text-nowrap">
                         <thead className="bg-light border-bottom">

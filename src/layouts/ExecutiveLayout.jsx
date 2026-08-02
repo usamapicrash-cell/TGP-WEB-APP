@@ -74,6 +74,9 @@ const ExecutiveLayout = () => {
     // Sirf Dashboard rakha gaya hai
     const navItems = [
         { label: 'DASHBOARD', icon: 'grid', path: '/executive/dashboard' },
+        { label: 'GLAZIERS', icon: 'person-badge', path: '/executive/glaziers' },
+        { label: 'SUPPLIERS', icon: 'truck', path: '/executive/suppliers' },
+        { label: 'PROFILE', icon: 'person-circle', path: '/executive/profile' },
     ];
 
     const currentNavItem = navItems.find(item => item.path === location.pathname);

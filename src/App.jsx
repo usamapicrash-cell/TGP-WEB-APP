@@ -31,6 +31,7 @@ import AdminProfile from './pages/admin/Profile'; // New
 
 // Executive Pages
 import ExecutiveDashboard from './pages/executive/Dashboard';
+import ExecutiveProfile from './pages/executive/Profile';
 
 // Glazier Pages
 import GlazierDashboard from './pages/glazier/Dashboard';
@@ -77,6 +78,15 @@ function App() {
             <Route index element={<Navigate to="/executive/dashboard" />} />
             <Route path="dashboard" element={
               <PageTitle title="Executive Dashboard"><ExecutiveDashboard /></PageTitle>
+            } />
+             <Route path="glaziers" element={
+              <PageTitle title="Glaziers"><AdminGlaziers /></PageTitle>
+            } />
+            <Route path="suppliers" element={
+              <PageTitle title="Suppliers"><AdminSuppliers /></PageTitle>
+            } />
+            <Route path="profile" element={
+              <PageTitle title="Executive Profile"><ExecutiveProfile /></PageTitle>
             } />
           </Route>
         </Route>
