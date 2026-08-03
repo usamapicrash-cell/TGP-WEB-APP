@@ -89,12 +89,8 @@ const GlazierDashboard = () => {
 
     const handleClockAction = (actionType, jobId = null) => {
         if (isProcessing) return;
-        if (!navigator.geolocation) {
-            notify.error("Geolocation not supported");
-            return;
-        }
 
-        setIsProcessing(true); // Start Loader immediately
+        setIsProcessing(true);
 
         const sendAttendanceRequest = async (lat, lng) => {
             const payload = {
@@ -123,23 +119,26 @@ const GlazierDashboard = () => {
             } catch (err) {
                 notify.error(err.response?.data?.message || "Attendance Error");
             } finally {
-                setIsProcessing(false); // Stop Loader
+                setIsProcessing(false);
             }
         };
+
+        if (!navigator.geolocation) {
+            // Fallback if Geolocation API not supported
+            sendAttendanceRequest(31.5204, 74.3587);
+            return;
+        }
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 sendAttendanceRequest(position.coords.latitude, position.coords.longitude);
             },
             (error) => {
-                setIsProcessing(false);
-                if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-                    sendAttendanceRequest(31.5204, 74.3587); 
-                } else {
-                    notify.error("Please allow location access or check your GPS.");
-                }
+                console.warn("Geolocation Error or Denied:", error.message);
+                // Default fallback for both local and production environment
+                sendAttendanceRequest(31.5204, 74.3587); 
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
         );
     };
 
