@@ -76,7 +76,7 @@ const AdminLayout = () => {
         { label: 'LEADS & QUOTES', icon: 'file-earmark-text', path: '/admin/leads' },
         { label: 'WORK ORDERS', icon: 'briefcase', path: '/admin/work-order' },
         { label: 'CALENDAR', icon: 'calendar3', path: '/admin/calendar' },
-        { label: 'MESSAGE', icon: 'chat-dots', path: '/admin/messages' },
+        { label: 'GLAZIERS CHAT', icon: 'chat-dots', path: '/admin/messages' },
         { label: 'PURCHASE ORDER', icon: 'cart-check', path: '/admin/purchase-order' },
         { label: 'GLAZIERS', icon: 'person-badge', path: '/admin/glaziers' },
         { label: 'SUPPLIERS', icon: 'truck', path: '/admin/suppliers' },
