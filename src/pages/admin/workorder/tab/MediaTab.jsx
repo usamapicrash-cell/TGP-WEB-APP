@@ -7,6 +7,7 @@ import "yet-another-react-lightbox/styles.css";
 const MediaTab = ({ lead, onRefresh }) => {
     const [uploading, setUploading] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [downloadingId, setDownloadingId] = useState(null);
     const [mediaItems, setMediaItems] = useState([]);
     const [openLightbox, setOpenLightbox] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -26,7 +27,10 @@ const MediaTab = ({ lead, onRefresh }) => {
     }, []);
 
     const loadMedia = async () => {
-        if (!gjob?.id) return;
+        if (!gjob?.id) {
+            setMediaItems([]);
+            return;
+        }
         try {
             const response = await api.get(`/jobs/${gjob.id}/media`);
             setMediaItems(response.data);
@@ -36,8 +40,9 @@ const MediaTab = ({ lead, onRefresh }) => {
     };
 
     useEffect(() => {
-        if (gjob?.media) setMediaItems(gjob.media);
-        else loadMedia();
+        setMediaItems([]);
+        setOpenDropdown(null);
+        loadMedia();
     }, [lead?.id, gjob?.id]);
 
     const handleUploadClick = (type) => {
@@ -81,6 +86,7 @@ const MediaTab = ({ lead, onRefresh }) => {
 
         try {
             await api.delete(`/jobs/${gjob.id}/media/${mediaId}`);
+            setMediaItems((prev) => prev.filter((item) => item.id !== mediaId));
             toast.success("Deleted successfully", { id: toastId });
             await loadMedia();
             if (onRefresh) onRefresh();
@@ -91,38 +97,39 @@ const MediaTab = ({ lead, onRefresh }) => {
         }
     };
 
-    // Direct Blob-based Download Handler (No Route/API Required)
-    const handleDirectDownload = async (e, fileUrl, filePath) => {
+    // Authenticated API Download Handler
+    const handleDownloadMedia = async (e, mediaId, filePath) => {
         e.preventDefault();
         e.stopPropagation();
         
-        const toastId = toast.loading("Starting download...");
+        if (!gjob?.id || !mediaId) return;
+
+        const toastId = toast.loading("Downloading file...");
+        setDownloadingId(mediaId);
 
         try {
-            const response = await fetch(fileUrl);
-            if (!response.ok) throw new Error("Network response was not ok");
-            
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            
-            // File Name Extraction
-            const fileName = filePath ? filePath.split('/').pop() : 'downloaded-media';
-            
+            const response = await api.get(`/jobs/${gjob.id}/media/${mediaId}/download`, {
+                responseType: 'blob'
+            });
+
+            const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+            const fileName = filePath ? filePath.split('/').pop() : 'job-media-file';
+
             const link = document.createElement('a');
             link.href = blobUrl;
-            link.download = fileName;
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
-            
-            // Clean up resources
-            document.body.removeChild(link);
+
+            link.remove();
             window.URL.revokeObjectURL(blobUrl);
-            
+
             toast.success("Downloaded successfully", { id: toastId });
         } catch (error) {
             console.error("Download error:", error);
-            toast.error("Download failed, opening in new tab", { id: toastId });
-            window.open(fileUrl, '_blank');
+            toast.error("Failed to download media file", { id: toastId });
+        } finally {
+            setDownloadingId(null);
         }
     };
 
@@ -187,6 +194,7 @@ const MediaTab = ({ lead, onRefresh }) => {
                             const fileUrl = `${STORAGE_BASE}/${item.file_path}`;
                             const isFilePdf = isPDF(item.file_path);
                             const isDeletingThis = deletingId === item.id;
+                            const isDownloadingThis = downloadingId === item.id;
                             const isMenuOpen = openDropdown === item.id;
 
                             return (
@@ -194,9 +202,9 @@ const MediaTab = ({ lead, onRefresh }) => {
                                     key={item.id} 
                                     className="media-item-card bg-light border position-relative shadow-sm rounded-3"
                                 >
-                                    {isDeletingThis && (
+                                    {(isDeletingThis || isDownloadingThis) && (
                                         <div className="position-absolute top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-flex align-items-center justify-content-center z-3 rounded-3">
-                                            <div className="spinner-border text-danger" style={{ width: '1.5rem', height: '1.5rem' }}></div>
+                                            <div className={`spinner-border ${isDeletingThis ? 'text-danger' : 'text-primary'}`} style={{ width: '1.5rem', height: '1.5rem' }}></div>
                                         </div>
                                     )}
 
@@ -225,7 +233,7 @@ const MediaTab = ({ lead, onRefresh }) => {
                                         )}
                                     </div>
 
-                                    {/* 3-Dots Action Button & Dropdown */}
+                                    {/* Action Dropdown Menu */}
                                     <div className="position-absolute top-0 end-0 m-2" style={{ zIndex: 10 }}>
                                         <button 
                                             type="button"
@@ -239,7 +247,6 @@ const MediaTab = ({ lead, onRefresh }) => {
                                             <i className="bi bi-three-dots-vertical text-dark fs-7"></i>
                                         </button>
 
-                                        {/* Dynamic Clean Dropdown */}
                                         {isMenuOpen && (
                                             <div 
                                                 className="custom-dropdown shadow border rounded-2 bg-white position-absolute end-0 mt-1 overflow-hidden animate__animated animate__fadeIn animate__faster" 
@@ -265,12 +272,11 @@ const MediaTab = ({ lead, onRefresh }) => {
                                                     </a>
                                                 )}
                                                 
-                                                {/* Direct Download Action Button */}
                                                 <button 
                                                     type="button"
                                                     className="dropdown-item-btn text-dark"
                                                     onClick={(e) => {
-                                                        handleDirectDownload(e, fileUrl, item.file_path);
+                                                        handleDownloadMedia(e, item.id, item.file_path);
                                                         setOpenDropdown(null);
                                                     }}
                                                 >
